@@ -10,7 +10,8 @@
     "isolatedModules": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@mealroulette/shared-types": ["../../packages/shared-types/src/index.ts"]
     }
   },
   "include": ["src"],
