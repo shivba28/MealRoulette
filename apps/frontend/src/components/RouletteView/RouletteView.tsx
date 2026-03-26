@@ -14,6 +14,7 @@ import { RecipeResultCard } from '@/components/RecipeResultCard';
 /** Wheel spin duration in ms (mockup used 1900; increased for a longer spin). */
 const WHEEL_SPIN_DURATION_MS = 3000;
 const WHEEL_SPIN_EASE = 'cubic-bezier(0.25, 0.1, 0.08, 1)';
+const MAX_RESULT_WAIT_MS = 25000;
 
 export interface RouletteViewProps {
   onAddMeal?: (meal: LoggedMeal) => void;
@@ -55,8 +56,26 @@ export function RouletteView({ onAddMeal }: RouletteViewProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const wheelSvgRef = useRef<SVGSVGElement>(null);
   const wheelRotationRef = useRef(0);
+  const requestIdRef = useRef(0);
+  const maxWaitTimerRef = useRef<number | null>(null);
+  const continuousSpinTweenRef = useRef<gsap.core.Tween | null>(null);
+
+  const stopContinuousSpin = useCallback(() => {
+    if (continuousSpinTweenRef.current) {
+      continuousSpinTweenRef.current.kill();
+      continuousSpinTweenRef.current = null;
+    }
+  }, []);
 
   const runSpin = useCallback(() => {
+    requestIdRef.current += 1;
+    const requestId = requestIdRef.current;
+    stopContinuousSpin();
+    if (maxWaitTimerRef.current != null) {
+      window.clearTimeout(maxWaitTimerRef.current);
+      maxWaitTimerRef.current = null;
+    }
+
     setError(null);
     setRecipe(null);
     setAnimationDone(false);
@@ -66,17 +85,31 @@ export function RouletteView({ onAddMeal }: RouletteViewProps) {
 
     const prefs = getPrefs();
     const avoidNames = getLast5MadeItRecipeNames();
-    generateSingleRecipeForRoulette(prefs, avoidNames).then((result) => {
-      if (result) recipeRef.current = result;
-      setRecipeReady(true);
-    }).catch(() => {
-      setRecipeReady(true);
-    });
+    generateSingleRecipeForRoulette(prefs, avoidNames)
+      .then((result) => {
+        if (requestIdRef.current !== requestId) return;
+        if (result) recipeRef.current = result;
+        setRecipeReady(true);
+      })
+      .catch(() => {
+        if (requestIdRef.current !== requestId) return;
+        setRecipeReady(true);
+      });
 
     if (skipAnimation) {
       requestAnimationFrame(() => setAnimationDone(true));
     }
-  }, [skipAnimation]);
+
+    maxWaitTimerRef.current = window.setTimeout(() => {
+      if (requestIdRef.current !== requestId) return;
+      if (recipeRef.current) return;
+      stopContinuousSpin();
+      setRecipeReady(true);
+      setAnimationDone(true);
+      setError('Taking longer than expected. Please try again.');
+      setPhase('idle');
+    }, MAX_RESULT_WAIT_MS);
+  }, [skipAnimation, stopContinuousSpin]);
 
   const handleWheelTransitionEnd = useCallback((e: React.TransitionEvent<SVGSVGElement>) => {
     if (e.propertyName !== 'transform') return;
@@ -99,13 +132,39 @@ export function RouletteView({ onAddMeal }: RouletteViewProps) {
     if (!animationDone || !recipeReady) return;
     const data = recipeRef.current;
     if (data) {
+      stopContinuousSpin();
       setRecipe(data);
       setPhase('reveal');
     } else {
+      stopContinuousSpin();
       setError('Could not get a recipe. Try again.');
       setPhase('idle');
     }
-  }, [animationDone, recipeReady]);
+  }, [animationDone, recipeReady, stopContinuousSpin]);
+
+  useEffect(() => {
+    if (phase !== 'spinning' || skipAnimation) return;
+    if (!animationDone || recipeReady) return;
+    const el = wheelSvgRef.current;
+    if (!el || continuousSpinTweenRef.current) return;
+    el.style.transition = 'none';
+    continuousSpinTweenRef.current = gsap.to(el, {
+      rotation: '+=360',
+      duration: 1,
+      ease: 'none',
+      repeat: -1,
+      transformOrigin: '50% 50%',
+    });
+  }, [animationDone, phase, recipeReady, skipAnimation]);
+
+  useEffect(() => {
+    if (!recipeReady) return;
+    stopContinuousSpin();
+    if (maxWaitTimerRef.current != null) {
+      window.clearTimeout(maxWaitTimerRef.current);
+      maxWaitTimerRef.current = null;
+    }
+  }, [recipeReady, stopContinuousSpin]);
 
   const handleSkipAnimationChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
@@ -127,6 +186,16 @@ export function RouletteView({ onAddMeal }: RouletteViewProps) {
     );
   }, [phase, recipe]);
 
+  useEffect(() => {
+    return () => {
+      stopContinuousSpin();
+      if (maxWaitTimerRef.current != null) {
+        window.clearTimeout(maxWaitTimerRef.current);
+        maxWaitTimerRef.current = null;
+      }
+    };
+  }, [stopContinuousSpin]);
+
   const handleRespin = useCallback(() => {
     runSpin();
   }, [runSpin]);
@@ -146,6 +215,7 @@ export function RouletteView({ onAddMeal }: RouletteViewProps) {
   }
 
   const isSpinning = phase === 'spinning';
+  const isWaitingForResult = isSpinning && animationDone && !recipeReady;
 
   return (
     <div className="roulette-view">
@@ -213,6 +283,11 @@ export function RouletteView({ onAddMeal }: RouletteViewProps) {
           Spin It!
         </button>
         <div className="annotation">click the wheel or tap the button</div>
+        {isWaitingForResult && (
+          <div className="annotation" role="status" aria-live="polite">
+            Waking the server and generating your meal...
+          </div>
+        )}
       </div>
       {error && (
         <p className="roulette-view__error" role="alert">

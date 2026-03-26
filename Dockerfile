@@ -12,7 +12,6 @@ COPY tsconfig.base.json ./
 COPY packages ./packages
 COPY services ./services
 COPY apps ./apps
-COPY mobile-shell ./mobile-shell
 
 RUN pnpm install --frozen-lockfile
 

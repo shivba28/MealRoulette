@@ -5,6 +5,5 @@ node_modules
 coverage
 apps/frontend/node_modules
 apps/frontend/dist
-mobile-shell/ios
 .DS_Store
 *.log
