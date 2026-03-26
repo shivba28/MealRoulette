@@ -1,0 +1,76 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`RecipeCard > matches snapshot 1`] = `
+<article
+  class="recipe-card "
+  data-testid="recipe-card"
+  role="article"
+>
+  <div
+    aria-hidden="true"
+    class="recipe-card__placeholder"
+  />
+  <div
+    class="recipe-card__body recipe-card__body--scroll"
+  >
+    <h2
+      class="recipe-card__title"
+    >
+      Test Recipe
+    </h2>
+    <p
+      class="recipe-card__description"
+    >
+      A test recipe
+    </p>
+    <dl
+      aria-label="Nutrition per serving"
+      class="recipe-card__macros"
+    >
+      <div>
+        <dt>
+          Calories
+        </dt>
+        <dd>
+          300
+        </dd>
+      </div>
+      <div>
+        <dt>
+          Protein
+        </dt>
+        <dd>
+          25
+          g
+        </dd>
+      </div>
+      <div>
+        <dt>
+          Carbs
+        </dt>
+        <dd>
+          30
+          g
+        </dd>
+      </div>
+      <div>
+        <dt>
+          Fat
+        </dt>
+        <dd>
+          10
+          g
+        </dd>
+      </div>
+    </dl>
+    <ul
+      aria-label="Tags"
+      class="recipe-card__tags"
+    >
+      <li>
+        test
+      </li>
+    </ul>
+  </div>
+</article>
+`;

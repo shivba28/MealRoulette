@@ -1,0 +1,18 @@
+/* Safe-area handling for notched phones (iOS) */
+
+/* Header: avoid the notch */
+.app-header {
+  padding-top: calc(10px + env(safe-area-inset-top, 0px));
+}
+
+/* Main content: avoid the home indicator + fixed macro bar */
+.wrap {
+  padding-bottom: calc(10px + var(--macro-tracker-collapsed-h) + env(safe-area-inset-bottom, 0px));
+}
+
+/* History panel: avoid the notch when fixed */
+.history-panel {
+  top: env(safe-area-inset-top, 0px);
+  height: calc(100vh - env(safe-area-inset-top, 0px));
+}
+

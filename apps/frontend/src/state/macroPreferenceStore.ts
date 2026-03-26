@@ -1,0 +1,69 @@
+import { create } from 'zustand';
+import type { MacroPreferences } from '@mealroulette/shared-types';
+import {
+  getStoredPreferences,
+  setStoredPreferences,
+} from '@/services/cache/preferencesCache';
+
+export interface MacroPreferenceState extends MacroPreferences {
+  setProteinTarget: (value: number) => void;
+  setCarbsTarget: (value: number) => void;
+  setFatTarget: (value: number) => void;
+  setCalorieCap: (value: number | undefined) => void;
+  setTolerance: (value: number) => void;
+  setPreferredIngredients: (value: string[]) => void;
+  setMaxCookTimeMinutes: (value: number) => void;
+  setPreferences: (prefs: Partial<MacroPreferences>) => void;
+  reset: () => void;
+  /** Load from IndexedDB (call on app init). */
+  loadFromStorage: () => Promise<void>;
+  /** Persist current state to IndexedDB. */
+  persistToStorage: () => Promise<void>;
+}
+
+const defaultPreferences: MacroPreferences = {
+  proteinTarget: 150,
+  carbsTarget: 200,
+  fatTarget: 65,
+  calorieCap: 2200,
+  tolerance: 0.15,
+  preferredIngredients: [],
+};
+
+export const useMacroPreferenceStore = create<MacroPreferenceState>((set, get) => ({
+  ...defaultPreferences,
+  setProteinTarget: (proteinTarget) => set({ proteinTarget }),
+  setCarbsTarget: (carbsTarget) => set({ carbsTarget }),
+  setFatTarget: (fatTarget) => set({ fatTarget }),
+  setCalorieCap: (calorieCap) =>
+    set((s) => {
+      if (calorieCap === undefined) {
+        const { calorieCap: _removed, ...rest } = s;
+        return rest as Partial<MacroPreferenceState>;
+      }
+      return { calorieCap };
+    }),
+  setTolerance: (tolerance) => set({ tolerance }),
+  setPreferredIngredients: (preferredIngredients) => set({ preferredIngredients }),
+  setMaxCookTimeMinutes: (maxCookTimeMinutes) => set({ maxCookTimeMinutes }),
+  setPreferences: (prefs) => set((state) => ({ ...state, ...prefs })),
+  reset: () => set(defaultPreferences),
+  loadFromStorage: async () => {
+    const stored = await getStoredPreferences();
+    if (stored) set({ ...defaultPreferences, ...stored });
+  },
+  persistToStorage: async () => {
+    const state = get();
+    const prefs: MacroPreferences = {
+      proteinTarget: state.proteinTarget,
+      carbsTarget: state.carbsTarget,
+      fatTarget: state.fatTarget,
+      tolerance: state.tolerance ?? 0.15,
+      preferredIngredients: state.preferredIngredients ?? [],
+    };
+    if (state.calorieCap !== undefined) prefs.calorieCap = state.calorieCap;
+    if (state.maxCookTimeMinutes != null && state.maxCookTimeMinutes !== 60)
+      prefs.maxCookTimeMinutes = state.maxCookTimeMinutes;
+    await setStoredPreferences(prefs);
+  },
+}));

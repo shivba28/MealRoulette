@@ -1,0 +1,258 @@
+# Meal Roulette — Cursor Rules
+
+## Design Identity
+This app blends three hand-drawn sketch styles on graph paper:
+1. **Watercolor looseness** (Image ref 1) — warm washes, impressionistic fills, gestural color bleed
+2. **Ink linework** (Image ref 2) — bold `2px` outlines, graphic black borders, confident strokes
+3. **Annotated food journal** (Image ref 3) — ingredient callouts with arrows, handwritten labels, scrapbook density
+
+The result is a tactile food diary. Every screen should feel like a sketched notebook page. Never clean, never corporate.
+
+---
+
+## Fonts
+Always import and use:
+- **Kalam** (700) — display text, headings, recipe titles, CTAs, section labels
+- **Caveat** (400, 600, 700) — body text, annotations, tags, metadata, journal notes
+
+```html
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Kalam:wght@300;400;700&display=swap" rel="stylesheet">
+```
+
+Never use Inter, Roboto, Arial, or any system font. Ever.
+
+---
+
+## Colors
+Use only these — all named after food ingredients:
+
+```
+--chili:     #c0392b   /* primary action, borders, tags, highlights */
+--herb:      #3a6644   /* cuisine labels, success states, checkmarks */
+--saffron:   #d4813a   /* watercolor wash accents, card top bands */
+--turmeric:  #b8973a   /* secondary decorative accents */
+--miso:      #7a4f2a   /* deep accents, dark element borders */
+--ink:       #2b2118   /* ALL outlines, headings, structural text */
+--paper:     #f7f2e8   /* backgrounds, card fills */
+--grid:      #c9dce8   /* graph paper lines, notebook rule lines */
+--margin:    #e8a090   /* notebook margin lines */
+--muted:     #9a856a   /* section labels, secondary text, annotations */
+```
+
+---
+
+## Background
+Every page and full-width container uses graph paper:
+
+```css
+background-color: #f7f2e8;
+background-image:
+  linear-gradient(#c9dce8 1px, transparent 1px),
+  linear-gradient(90deg, #c9dce8 1px, transparent 1px);
+background-size: 24px 24px;
+```
+
+---
+
+## Borders
+- All borders: `2px solid #2b2118` — thick ink lines
+- No border-radius anywhere on cards, buttons, tags, or inputs (0 = hand-drawn feel)
+- Section dividers: `1.5px dashed #c8b89a`
+- Subtle double-outline on cards: add a `::after` at `bottom: -3px; right: -3px; left: 3px; top: 3px; border: 1.5px solid #2b2118; opacity: 0.2`
+
+---
+
+## Card Rotation
+All cards, swatches, and decorative blocks are slightly rotated:
+- Recipe cards: `transform: rotate(0.9deg)`
+- Preference cards: `transform: rotate(-0.7deg)`
+- Buttons: `transform: rotate(-1.2deg)`
+- Swatches / decorative blocks: `rotate(±0.5deg to ±1.5deg)`
+
+---
+
+## Offset Shadow (NEVER use box-shadow)
+Use a `::before` pseudo-element for all shadows:
+
+```css
+.element {
+  position: relative;
+}
+.element::before {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  right: -5px;
+  left: 5px;
+  top: 5px;
+  background: #c0392b;   /* or #2b2118 for secondary */
+  opacity: 0.7;
+  z-index: -1;
+}
+```
+
+Lighter variant (for small UI elements): shift `3px`, `opacity: 0.15`.
+
+---
+
+## Watercolor Wash (inspired by Image 1)
+Simulate watercolor fill using flat color with opacity — never CSS gradients:
+
+```css
+/* Top band on recipe cards */
+.card-wash {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 5px;
+  background: #d4813a;
+  opacity: 0.6;
+}
+
+/* Color fill on wheel segments */
+fill="#d4813a" opacity="0.85"
+```
+
+Color bleeds and washes = flat fill + opacity. Not gradients.
+
+---
+
+## Annotation Style (inspired by Image 3)
+Add ingredient/detail callouts using italic Caveat with arrow characters:
+
+```css
+.annotation {
+  font-family: 'Caveat', cursive;
+  font-size: 13px;
+  font-style: italic;
+  color: #7a6249;
+}
+```
+
+Used as: `← deep-fried tofu, slightly crispy` or `→ substitute with tempeh`
+Place near relevant elements. This is a core UI pattern, not decoration.
+
+---
+
+## Notebook Lines (inspired by Images 2 & 3)
+For preference cards, journal blocks, and note areas:
+
+```css
+background-image: repeating-linear-gradient(
+  transparent,
+  transparent 27px,
+  #c9dce8 27px,
+  #c9dce8 28px
+);
+```
+
+Add red margin line:
+```css
+.margin-line {
+  position: absolute;
+  left: 38px; top: 0; bottom: 0;
+  border-left: 1.5px solid #e8a090;
+}
+```
+Content indented `50–52px` from left to clear the margin.
+
+---
+
+## Component Rules
+
+### Recipe card
+```css
+background: rgba(255, 248, 235, 0.85);
+border: 2px solid #2b2118;
+padding: 14px;
+transform: rotate(0.9deg);
+position: relative;
+/* ::before offset shadow in #c0392b, opacity 0.7 */
+/* ::after top wash band in #d4813a, height 5px */
+```
+
+### Buttons
+```css
+font-family: 'Kalam', cursive;
+font-weight: 700;
+color: #f7f2e8;
+background: #2b2118;
+border: none;
+transform: rotate(-1.2deg);
+position: relative;
+/* ::before offset shadow in #c0392b */
+```
+Hover: `translateY(-2px)` maintaining rotation. Active: `translateY(1px)`.
+
+### Tags
+```css
+font-family: 'Caveat', cursive;
+font-size: 13px;
+font-weight: 600;
+padding: 2px 8px;
+border: 1.5px solid #c0392b;
+color: #c0392b;
+background: rgba(192, 57, 43, 0.08);
+border-radius: 0;
+```
+
+### Checkboxes
+- Draw as `14×14px` squares with `2px solid #2b2118` border
+- Checked state: `✓` text character in `#c0392b`
+- Never use native `<input type="checkbox">` styling
+
+### Section labels
+```css
+font-family: 'Kalam', cursive;
+font-size: 12px;
+font-weight: 700;
+color: #9a856a;
+letter-spacing: 2.5px;
+text-transform: uppercase;
+border-bottom: 1.5px dashed #c8b89a;
+padding-bottom: 4px;
+```
+
+### Inputs
+```css
+font-family: 'Caveat', cursive;
+font-size: 16px;
+background: rgba(255, 255, 255, 0.55);
+border: 2px solid #2b2118;
+border-radius: 0;
+padding: 8px 12px;
+```
+Focus: `border-color: #c0392b`
+
+---
+
+## Motion
+- Easing: `cubic-bezier(0.25, 0.1, 0.08, 1)` — snappy physical feel
+- Wheel spin: 1.8–2s duration, accumulates rotation
+- Card appear: watercolor wash sweeps in from top (stroke-dashoffset or clip-path animation)
+- Border draw-on: SVG `stroke-dashoffset` animation (ink being drawn)
+- Annotations: staggered appear, `80–120ms` delay per item
+- Hover lifts: `translateY(-2px)` max, always maintain element rotation
+- No opacity fades on UI elements
+- No blur, glow, or gradient animations
+
+---
+
+## Copy & Voice
+- Always imperative: "Spin it." "Let's cook." "Try again."
+- Never passive: no "Would you like to…" / "Maybe try…" / "You might enjoy…"
+- Use annotation arrows in UI copy: `← fresh herbs recommended`
+- Empty state: "Hungry? Spin it."
+- Error state: "Hmm. Try spinning again."
+- Confirmation: "Let's cook! ✓"
+
+---
+
+## What to NEVER do
+- Never `box-shadow` — use offset `::before` pseudo-element
+- Never `border-radius` > 0 on cards, buttons, tags, or inputs
+- Never Inter, Roboto, Arial, or system fonts
+- Never CSS gradients on UI elements (use flat fill + opacity for watercolor effect)
+- Never perfectly symmetrical or centered layouts — rotation and asymmetry is the point
+- Never clean corporate aesthetics
+- Never `opacity` transitions for appearing elements — use `transform` or clip-path
+- Never skip annotations — ingredient callouts are a core design pattern, not optional decoration

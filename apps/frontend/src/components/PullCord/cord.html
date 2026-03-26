@@ -1,0 +1,138 @@
+<style>
+    .toggle-scene__cord {
+	 stroke: var(--cord);
+	 cursor: move;
+}
+ .toggle-scene__cord:nth-of-type(1) {
+	 display: none;
+}
+ .toggle-scene__cord:nth-of-type(2), .toggle-scene__cord:nth-of-type(3), .toggle-scene__cord:nth-of-type(4), .toggle-scene__cord:nth-of-type(5) {
+	 display: none;
+}
+ .toggle-scene__cord-end {
+	 stroke: var(--cord);
+	 fill: var(--cord);
+}
+ .toggle-scene__dummy-cord {
+	 stroke-width: 6;
+	 stroke: var(--cord);
+}
+</style>
+<g class="toggle-scene__cords">
+    <path class="toggle-scene__cord" marker-end="url(#a)" fill="none" stroke-linecap="square" stroke-width="6" d="M123.228-28.56v150.493" transform="translate(-24.503 256.106)"></path>
+    <path class="toggle-scene__cord" marker-end="url(#a)" fill="none" stroke-linecap="square" stroke-width="6" d="M123.228-28.59s28 8.131 28 19.506-18.667 13.005-28 19.507c-9.333 6.502-28 8.131-28 19.506s28 19.507 28 19.507" transform="translate(-24.503 256.106)"></path>
+    <path class="toggle-scene__cord" marker-end="url(#a)" fill="none" stroke-linecap="square" stroke-width="6" d="M123.228-28.575s-20 16.871-20 28.468c0 11.597 13.333 18.978 20 28.468 6.667 9.489 20 16.87 20 28.467 0 11.597-20 28.468-20 28.468" transform="translate(-24.503 256.106)"></path>
+    <path class="toggle-scene__cord" marker-end="url(#a)" fill="none" stroke-linecap="square" stroke-width="6" d="M123.228-28.569s16 20.623 16 32.782c0 12.16-10.667 21.855-16 32.782-5.333 10.928-16 20.623-16 32.782 0 12.16 16 32.782 16 32.782" transform="translate(-24.503 256.106)"></path>
+    <path class="toggle-scene__cord" marker-end="url(#a)" fill="none" stroke-linecap="square" stroke-width="6" d="M123.228-28.563s-10 24.647-10 37.623c0 12.977 6.667 25.082 10 37.623 3.333 12.541 10 24.647 10 37.623 0 12.977-10 37.623-10 37.623" transform="translate(-24.503 256.106)"></path>
+    <g class="line toggle-scene__dummy-cord">
+      <line marker-end="url(#a)" x1="98.7255" x2="98.7255" y1="240.5405" y2="380.5405"></line>
+    </g>
+    <circle class="toggle-scene__hit-spot" cx="98.7255" cy="380.5405" r="60" fill="transparent"></circle>
+</g>
+<script>
+    const {
+  gsap: {
+    registerPlugin,
+    set,
+    to,
+    timeline
+  },
+  MorphSVGPlugin,
+  Draggable
+} = window;
+registerPlugin(MorphSVGPlugin);
+
+// Used to calculate distance of "tug"
+let startX;
+let startY;
+const AUDIO = {
+  CLICK: new Audio('https://assets.codepen.io/605876/click.mp3')
+};
+const STATE = {
+  ON: false
+};
+const CORD_DURATION = 0.1;
+const CORDS = document.querySelectorAll('.toggle-scene__cord');
+const HIT = document.querySelector('.toggle-scene__hit-spot');
+const DUMMY = document.querySelector('.toggle-scene__dummy-cord');
+const DUMMY_CORD = document.querySelector('.toggle-scene__dummy-cord line');
+const PROXY = document.createElement('div');
+// set init position
+const ENDX = DUMMY_CORD.getAttribute('x2');
+const ENDY = DUMMY_CORD.getAttribute('y2');
+const RESET = () => {
+  set(PROXY, {
+    x: ENDX,
+    y: ENDY
+  });
+};
+RESET();
+const CORD_TL = timeline({
+  paused: true,
+  onStart: () => {
+    STATE.ON = !STATE.ON;
+    set(document.documentElement, {
+      '--on': STATE.ON ? 1 : 0
+    });
+    set([DUMMY, HIT], {
+      display: 'none'
+    });
+    set(CORDS[0], {
+      display: 'block'
+    });
+    AUDIO.CLICK.play();
+  },
+  onComplete: () => {
+    set([DUMMY, HIT], {
+      display: 'block'
+    });
+    set(CORDS[0], {
+      display: 'none'
+    });
+    RESET();
+  }
+});
+for (let i = 1; i < CORDS.length; i++) {
+  CORD_TL.add(to(CORDS[0], {
+    morphSVG: CORDS[i],
+    duration: CORD_DURATION,
+    repeat: 1,
+    yoyo: true
+  }));
+}
+Draggable.create(PROXY, {
+  trigger: HIT,
+  type: 'x,y',
+  onPress: e => {
+    startX = e.x;
+    startY = e.y;
+  },
+  onDrag: function () {
+    set(DUMMY_CORD, {
+      attr: {
+        x2: this.x,
+        y2: this.y
+      }
+    });
+  },
+  onRelease: function (e) {
+    const DISTX = Math.abs(e.x - startX);
+    const DISTY = Math.abs(e.y - startY);
+    const TRAVELLED = Math.sqrt(DISTX * DISTX + DISTY * DISTY);
+    to(DUMMY_CORD, {
+      attr: {
+        x2: ENDX,
+        y2: ENDY
+      },
+      duration: CORD_DURATION,
+      onComplete: () => {
+        if (TRAVELLED > 50) {
+          CORD_TL.restart();
+        } else {
+          RESET();
+        }
+      }
+    });
+  }
+});
+</script>

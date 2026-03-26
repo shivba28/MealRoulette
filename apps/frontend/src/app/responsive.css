@@ -1,0 +1,76 @@
+/* Responsive overrides (media queries only). Keep `index.css` for base styles. */
+
+/* Type scaling */
+@media (max-width: 1023px) {
+  :root { --fs-scale: 1.12; }
+}
+@media (max-width: 767px) {
+  :root { --fs-scale: 1.05; }
+}
+@media (max-width: 599px) {
+  :root { --fs-scale: 1.0; }
+}
+
+/* App shell spacing */
+@media (max-width: 767px) {
+  .main-layout { padding: 12px; }
+  .spin-zone { gap: 12px; padding: 6px 0 16px; }
+  .prefs-summary { padding: 10px 12px; }
+  .roulette-view {margin-top: 50px;}
+  .recipe-result-card {margin-top: 0px;}
+}
+@media (max-width: 599px) {
+  .main-layout { padding: 10px; }
+  .prefs-summary { padding: 9px 10px; }
+}
+
+/* Preferences */
+@media (max-width: 600px) {
+  .pref-ingredient-row { flex-direction: column; }
+}
+@media (max-width: 767px) {
+  .preferences-form__grid { grid-template-columns: 1fr; }
+}
+
+/* Recipe: Steps + YouTube stacked on phones */
+@media (max-width: 720px) {
+  .recipe-result-card__steps-row { grid-template-columns: 1fr; }
+  .recipe-youtube-block--side { height: auto; }
+  .recipe-youtube-block--side .youtube-thumbnail { height: auto; border: none; background: transparent; }
+  .recipe-youtube-block--side .youtube-thumbnail__link { height: auto; }
+  .recipe-youtube-block--side .youtube-thumbnail__aspect { height: auto; aspect-ratio: 16 / 9; border: 2px solid var(--ink); }
+}
+
+/* Macro tracker: tighten pills on phones */
+@media (max-width: 599px) {
+  .macro-tracker-bar__collapsed { gap: 8px; padding: 10px 12px; }
+  .macro-tracker-bar__pills { gap: 6px; }
+  .macro-tracker-bar__pill span { display: none; }
+}
+
+/* Substitution popover: accordion on phones/tablets */
+@media (max-width: 767px) {
+  .ingr-item { flex-wrap: wrap; align-items: flex-start; }
+  .substitution-popover {
+    position: static;
+    left: auto;
+    top: auto;
+    margin: 8px 0 0;
+    width: 100%;
+    flex: 0 0 100%;
+    min-width: 0;
+    max-width: 100%;
+    z-index: auto;
+    transform-origin: top center;
+  }
+  .substitution-popover .sub-popover { transform: none; }
+}
+
+/* History panel: full width on phones/tablets */
+@media (max-width: 767px) {
+  .history-panel { width: 100vw; border-left: none; }
+  .history-panel__content { padding-bottom: var(--macro-tracker-collapsed-h); }
+  .history-bookmark { width: 40px; height: 118px; padding: 10px 0 22px; }
+  .prefs-summary__cols { flex-direction: column; }
+}
+
