@@ -73,14 +73,18 @@ function App() {
   useEffect(() => {
     const el = historyBookmarkRef.current;
     if (!el) return;
-    const panelW = Math.min(500, window.innerWidth);
+    // Keep in sync with CSS: panel is full width on <= 767px, otherwise max 500px.
+    const panelW =
+      window.innerWidth <= 767 ? window.innerWidth : Math.min(500, window.innerWidth);
     const targetShift = historyOpen ? `-${panelW + 0}px` : '0px';
     gsap.killTweensOf(el);
     gsap.to(el, {
       duration: 0.4,
       ease: historyOpen ? 'power2.out' : 'power2.inOut',
       '--bookmark-shift': targetShift,
+      right: window.innerWidth <= 767 ? (historyOpen ? '-30px' : '0px') : '0px',
     } as any);
+    gsap.to(".history-bookmark__icon-wrap", { duration: 0.4, ease: 'power2.inOut', top: historyOpen ? '-10px' : '0px' });
   }, [historyOpen]);
 
   const handleEnter = useCallback(() => {
