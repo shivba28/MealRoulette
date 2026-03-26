@@ -25,15 +25,15 @@ export class Recipe {
     return new Recipe(
       dto.id,
       dto.name,
-      dto.description,
+      dto.description ?? '',
       dto.calories,
       dto.protein,
       dto.carbs,
       dto.fat,
-      dto.servings,
-      dto.tags,
-      dto.createdAt,
-      dto.updatedAt,
+      dto.servings ?? 1,
+      dto.tags ?? [],
+      dto.createdAt ?? '',
+      dto.updatedAt ?? '',
       dto.imageUrl,
       dto.cookTimeMinutes
     );
