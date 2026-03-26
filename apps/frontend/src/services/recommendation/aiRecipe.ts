@@ -6,14 +6,15 @@
  * - Single: generateAIRecipe(prefs) — one recipe (for backward compat / prefetch).
  *
  * Priority: VITE_GROQ_API_KEY (free, fast) → VITE_HF_TOKEN (Hugging Face free tier) → mock recipes.
- * Preferences are structured into a clear prompt: protein, carbs, fat, calories, cook time, preferred ingredients.
+ * Macro preferences are per meal; prompts ask the LLM to hit those targets per serving.
  */
 
-import type {
-  MacroPreferences,
-  Recipe,
-  RecipeMacros,
-  UserProfile,
+import {
+  DEFAULT_CALORIE_CAP_PER_MEAL,
+  type MacroPreferences,
+  type Recipe,
+  type RecipeMacros,
+  type UserProfile,
 } from '@mealroulette/shared-types';
 import { putRecipesInCache } from '@/services/cache';
 import { useMacroPreferenceStore } from '@/state/macroPreferenceStore';
@@ -49,8 +50,7 @@ function tagsFromProfile(profile: UserProfile | null, prefs: MacroPreferences): 
 
 function macroFromProfile(
   profile: UserProfile | null,
-  prefs: MacroPreferences,
-  perMeal: number
+  prefs: MacroPreferences
 ): { protein: number; carbs: number; fat: number; calories: number } {
   if (profile && profile.likedCount > 0) {
     const { likedMacroSum, likedCount } = profile;
@@ -63,10 +63,10 @@ function macroFromProfile(
     };
   }
   return {
-    protein: Math.round(prefs.proteinTarget / perMeal),
-    carbs: Math.round(prefs.carbsTarget / perMeal),
-    fat: Math.round(prefs.fatTarget / perMeal),
-    calories: Math.round((prefs.calorieCap ?? 2200) / perMeal),
+    protein: Math.round(prefs.proteinTarget),
+    carbs: Math.round(prefs.carbsTarget),
+    fat: Math.round(prefs.fatTarget),
+    calories: Math.round(prefs.calorieCap ?? DEFAULT_CALORIE_CAP_PER_MEAL),
   };
 }
 
@@ -76,10 +76,9 @@ function buildMockRecipe(
   userProfile: UserProfile | null,
   id: string
 ): Recipe {
-  const perMeal = 3;
   const profile = userProfile ?? null;
   const tags = tagsFromProfile(profile, prefs);
-  const macro = macroFromProfile(profile, prefs, perMeal);
+  const macro = macroFromProfile(profile, prefs);
   const cookMin =
     prefs.maxCookTimeMinutes != null && prefs.maxCookTimeMinutes !== 60
       ? Math.min(30, prefs.maxCookTimeMinutes)
@@ -190,11 +189,11 @@ function buildPromptForRoulette(
   prefs: MacroPreferences,
   avoidRecipeNames: string[] = []
 ): string {
-  const perMeal = 3;
-  const protein = Math.round(prefs.proteinTarget / perMeal);
-  const carbs = Math.round(prefs.carbsTarget / perMeal);
-  const fat = Math.round(prefs.fatTarget / perMeal);
-  const calories = prefs.calorieCap != null ? Math.round(prefs.calorieCap / perMeal) : 600;
+  const protein = Math.round(prefs.proteinTarget);
+  const carbs = Math.round(prefs.carbsTarget);
+  const fat = Math.round(prefs.fatTarget);
+  const calories =
+    prefs.calorieCap != null ? Math.round(prefs.calorieCap) : DEFAULT_CALORIE_CAP_PER_MEAL;
   const cookMin =
     prefs.maxCookTimeMinutes != null && prefs.maxCookTimeMinutes !== 60
       ? prefs.maxCookTimeMinutes
@@ -230,11 +229,11 @@ Output only the JSON object.`;
 
 /** Build a structured prompt for the LLM to return N meal recommendations from user preferences. */
 function buildPromptForBatch(prefs: MacroPreferences, count: number): string {
-  const perMeal = 3;
-  const protein = Math.round(prefs.proteinTarget / perMeal);
-  const carbs = Math.round(prefs.carbsTarget / perMeal);
-  const fat = Math.round(prefs.fatTarget / perMeal);
-  const calories = prefs.calorieCap != null ? Math.round(prefs.calorieCap / perMeal) : 600;
+  const protein = Math.round(prefs.proteinTarget);
+  const carbs = Math.round(prefs.carbsTarget);
+  const fat = Math.round(prefs.fatTarget);
+  const calories =
+    prefs.calorieCap != null ? Math.round(prefs.calorieCap) : DEFAULT_CALORIE_CAP_PER_MEAL;
   const cookMin =
     prefs.maxCookTimeMinutes != null && prefs.maxCookTimeMinutes !== 60
       ? prefs.maxCookTimeMinutes
@@ -479,7 +478,7 @@ export async function generateSingleRecipeForRoulette(
   avoidRecipeNames: string[] = []
 ): Promise<Recipe | null> {
   const id = uniqueAiId();
-  const fallbackMacro = macroFromProfile(null, prefs, 3);
+  const fallbackMacro = macroFromProfile(null, prefs);
   const prompt = buildPromptForRoulette(prefs, avoidRecipeNames);
 
   const groqKey = import.meta.env['VITE_GROQ_API_KEY'] as string | undefined;
@@ -516,7 +515,7 @@ export async function generateAIRecipe(
 ): Promise<Recipe | null> {
   const id = uniqueAiId();
   const profile = userProfile ?? null;
-  const fallbackMacro = macroFromProfile(profile, prefs, 3);
+  const fallbackMacro = macroFromProfile(profile, prefs);
   const token = import.meta.env['VITE_HF_TOKEN'] as string | undefined;
   const allowed = prefs.preferredIngredients?.length
     ? prefs.preferredIngredients.join(', ')
@@ -587,7 +586,7 @@ export async function generateAIRecipesBatch(
   userProfile?: UserProfile | null
 ): Promise<Recipe[]> {
   const profile = userProfile ?? null;
-  const fallbackMacro = macroFromProfile(profile, prefs, 3);
+  const fallbackMacro = macroFromProfile(profile, prefs);
   const prompt = buildPromptForBatch(prefs, count);
 
   const groqKey = import.meta.env['VITE_GROQ_API_KEY'] as string | undefined;

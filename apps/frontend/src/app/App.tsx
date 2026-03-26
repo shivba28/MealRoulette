@@ -17,8 +17,12 @@ import type { LoggedMeal } from '@/services/macroLog';
 import { calculateStreak } from '@/utils/streakUtils';
 import { PullCord } from '@/components/PullCord/PullCord';
 import type { PullCordHandle } from '@/components/PullCord/PullCord';
+import { DEFAULT_CALORIE_CAP_PER_MEAL } from '@mealroulette/shared-types';
 
 const VISITED_KEY = 'meal-roulette-visited';
+
+/** Prefs are per meal; tracker compares today’s intake to ~3 meals × targets. */
+const MEALS_PER_DAY_FOR_TRACKER = 3;
 
 function App() {
   const loadFromStorage = useMacroPreferenceStore((s) => s.loadFromStorage);
@@ -26,7 +30,7 @@ function App() {
   const proteinTarget = useMacroPreferenceStore((s) => s.proteinTarget);
   const carbsTarget = useMacroPreferenceStore((s) => s.carbsTarget);
   const fatTarget = useMacroPreferenceStore((s) => s.fatTarget);
-  const calorieCap = useMacroPreferenceStore((s) => s.calorieCap ?? 2200);
+  const calorieCap = useMacroPreferenceStore((s) => s.calorieCap ?? DEFAULT_CALORIE_CAP_PER_MEAL);
   const maxCookTimeMinutes = useMacroPreferenceStore((s) => s.maxCookTimeMinutes);
   const preferredIngredients = useMacroPreferenceStore((s) => s.preferredIngredients ?? []);
   const [hasEntered, setHasEntered] = useState(false);
@@ -319,10 +323,10 @@ function App() {
       <MacroTrackerBar
         ref={macroTrackerRef}
         targets={{
-          protein: proteinTarget,
-          carbs: carbsTarget,
-          fat: fatTarget,
-          calories: calorieCap,
+          protein: proteinTarget * MEALS_PER_DAY_FOR_TRACKER,
+          carbs: carbsTarget * MEALS_PER_DAY_FOR_TRACKER,
+          fat: fatTarget * MEALS_PER_DAY_FOR_TRACKER,
+          calories: calorieCap * MEALS_PER_DAY_FOR_TRACKER,
         }}
       />
       <HistoryPanel isOpen={historyOpen} onClose={() => setHistoryOpen(false)} />

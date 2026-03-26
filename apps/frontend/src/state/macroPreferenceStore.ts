@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { MacroPreferences } from '@mealroulette/shared-types';
+import { DEFAULT_CALORIE_CAP_PER_MEAL } from '@mealroulette/shared-types';
 import {
   getStoredPreferences,
   setStoredPreferences,
@@ -22,10 +23,10 @@ export interface MacroPreferenceState extends MacroPreferences {
 }
 
 const defaultPreferences: MacroPreferences = {
-  proteinTarget: 150,
-  carbsTarget: 200,
-  fatTarget: 65,
-  calorieCap: 2200,
+  proteinTarget: 50,
+  carbsTarget: 65,
+  fatTarget: 22,
+  calorieCap: DEFAULT_CALORIE_CAP_PER_MEAL,
   tolerance: 0.15,
   preferredIngredients: [],
 };

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { DEFAULT_CALORIE_CAP_PER_MEAL } from '@mealroulette/shared-types';
 import { useMacroPreferenceStore } from '@/state/macroPreferenceStore';
 import { TagSearchInput } from '@/components/TagSearchInput';
 import { MacroSliderInput } from '@/components/MacroSliderInput';
@@ -153,7 +154,7 @@ export const PreferencesForm = React.forwardRef<PreferencesFormRef | null, Prefe
           <div className="pref-inner">
             <h2 className="pref-title">My Preferences</h2>
 
-            <div className="sec-label">Macro targets</div>
+            <div className="sec-label">Macro targets (per meal)</div>
             <div className="macro-inputs">
               <div className="macro-field">
                 <MacroSliderInput
@@ -198,7 +199,7 @@ export const PreferencesForm = React.forwardRef<PreferencesFormRef | null, Prefe
                   max={5000}
                   step={50}
                   unit="kcal"
-                  value={calorieCap ?? 2200}
+                  value={calorieCap ?? DEFAULT_CALORIE_CAP_PER_MEAL}
                   onChange={(v) => setCalorieCap(v)}
                   data-testid="pref-calories"
                 />

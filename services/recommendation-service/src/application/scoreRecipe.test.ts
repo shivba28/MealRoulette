@@ -2,7 +2,8 @@ import { MacroPreferences } from '../domain/MacroPreferences';
 import { RecommendationEngine, scoreRecipe } from './RecommendationEngine';
 import type { Recipe } from '@mealroulette/shared-types';
 
-const prefs = new MacroPreferences(150, 200, 65, 2200, 0.15);
+/** Per-meal targets (aligned with shared-types / frontend defaults). */
+const prefs = new MacroPreferences(50, 67, 22, 733, 0.15);
 
 const baseRecipe: Recipe = {
   id: '1',

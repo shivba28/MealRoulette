@@ -24,9 +24,9 @@ describe('generateAIRecipe', () => {
     expect(recipe).not.toBeNull();
     expect(recipe!.id).toMatch(/^ai-/);
     expect(recipe!.name).toBe('AI-suggested meal');
-    expect(recipe!.protein).toBe(30);
-    expect(recipe!.carbs).toBe(67);
-    expect(recipe!.fat).toBe(22);
+    expect(recipe!.protein).toBe(90);
+    expect(recipe!.carbs).toBe(200);
+    expect(recipe!.fat).toBe(65);
     expect(recipe!.tags).toContain('chicken');
     expect(recipe!.tags).toContain('rice');
     expect(recipe!.cookTimeMinutes).toBe(30);

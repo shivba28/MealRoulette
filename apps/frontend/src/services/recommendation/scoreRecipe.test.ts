@@ -31,7 +31,7 @@ const prefs: MacroPreferences = {
 
 describe('scoreRecipe', () => {
   it('returns score in [0, 1]', () => {
-    const r = mockRecipe({ protein: 30, carbs: 35, fat: 10, calories: 300 });
+    const r = mockRecipe({ protein: 90, carbs: 105, fat: 30, calories: 900 });
     const result = scoreRecipe(r, prefs);
     expect(result.score).toBeGreaterThanOrEqual(0);
     expect(result.score).toBeLessThanOrEqual(1);
@@ -40,10 +40,10 @@ describe('scoreRecipe', () => {
 
   it('higher macro match gives higher score', () => {
     const wellMatched = mockRecipe({
-      protein: 30,
-      carbs: 35,
-      fat: 10,
-      calories: 300,
+      protein: 90,
+      carbs: 105,
+      fat: 30,
+      calories: 900,
     });
     const poorMatch = mockRecipe({
       protein: 5,
@@ -61,7 +61,7 @@ describe('recommendRecipes', () => {
   it('returns sorted recipes descending by score', () => {
     const recipes = [
       mockRecipe({ id: 'a', protein: 5, carbs: 5, fat: 2 }),
-      mockRecipe({ id: 'b', protein: 30, carbs: 35, fat: 10 }),
+      mockRecipe({ id: 'b', protein: 90, carbs: 105, fat: 30, calories: 900 }),
       mockRecipe({ id: 'c', protein: 25, carbs: 30, fat: 8 }),
     ];
     const result = recommendRecipes(recipes, prefs, new Set(), 3);

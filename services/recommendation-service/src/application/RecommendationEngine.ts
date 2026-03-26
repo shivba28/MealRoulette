@@ -88,12 +88,12 @@ export function scoreRecipe(
   const tol = preferences.tolerance;
   const k = opts.sigmoidSteepness;
 
-  const proteinTarget = preferences.proteinTarget / 3;
-  const carbsTarget = preferences.carbsTarget / 3;
-  const fatTarget = preferences.fatTarget / 3;
+  const proteinTarget = preferences.proteinTarget;
+  const carbsTarget = preferences.carbsTarget;
+  const fatTarget = preferences.fatTarget;
   const calorieTarget =
     preferences.calorieCap !== undefined
-      ? preferences.calorieCap / 3
+      ? preferences.calorieCap
       : safeMacro(recipe.calories);
 
   const proteinMatch = normalizedMatch(
