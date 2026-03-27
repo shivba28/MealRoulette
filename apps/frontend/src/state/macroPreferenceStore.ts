@@ -14,6 +14,12 @@ export interface MacroPreferenceState extends MacroPreferences {
   setTolerance: (value: number) => void;
   setPreferredIngredients: (value: string[]) => void;
   setMaxCookTimeMinutes: (value: number) => void;
+  setTrackerTargetMode: (value: 'perMeal' | 'daily') => void;
+  setTrackerMealsPerDay: (value: number) => void;
+  setDailyProteinTarget: (value: number) => void;
+  setDailyCarbsTarget: (value: number) => void;
+  setDailyFatTarget: (value: number) => void;
+  setDailyCalorieTarget: (value: number) => void;
   setPreferences: (prefs: Partial<MacroPreferences>) => void;
   reset: () => void;
   /** Load from IndexedDB (call on app init). */
@@ -29,6 +35,8 @@ const defaultPreferences: MacroPreferences = {
   calorieCap: DEFAULT_CALORIE_CAP_PER_MEAL,
   tolerance: 0.15,
   preferredIngredients: [],
+  trackerTargetMode: 'perMeal',
+  trackerMealsPerDay: 3,
 };
 
 export const useMacroPreferenceStore = create<MacroPreferenceState>((set, get) => ({
@@ -47,6 +55,13 @@ export const useMacroPreferenceStore = create<MacroPreferenceState>((set, get) =
   setTolerance: (tolerance) => set({ tolerance }),
   setPreferredIngredients: (preferredIngredients) => set({ preferredIngredients }),
   setMaxCookTimeMinutes: (maxCookTimeMinutes) => set({ maxCookTimeMinutes }),
+  setTrackerTargetMode: (trackerTargetMode) => set({ trackerTargetMode }),
+  setTrackerMealsPerDay: (trackerMealsPerDay) =>
+    set({ trackerMealsPerDay: Math.max(1, Math.min(8, Math.round(trackerMealsPerDay))) }),
+  setDailyProteinTarget: (dailyProteinTarget) => set({ dailyProteinTarget }),
+  setDailyCarbsTarget: (dailyCarbsTarget) => set({ dailyCarbsTarget }),
+  setDailyFatTarget: (dailyFatTarget) => set({ dailyFatTarget }),
+  setDailyCalorieTarget: (dailyCalorieTarget) => set({ dailyCalorieTarget }),
   setPreferences: (prefs) => set((state) => ({ ...state, ...prefs })),
   reset: () => set(defaultPreferences),
   loadFromStorage: async () => {
@@ -65,6 +80,12 @@ export const useMacroPreferenceStore = create<MacroPreferenceState>((set, get) =
     if (state.calorieCap !== undefined) prefs.calorieCap = state.calorieCap;
     if (state.maxCookTimeMinutes != null && state.maxCookTimeMinutes !== 60)
       prefs.maxCookTimeMinutes = state.maxCookTimeMinutes;
+    if (state.trackerTargetMode) prefs.trackerTargetMode = state.trackerTargetMode;
+    if (state.trackerMealsPerDay != null) prefs.trackerMealsPerDay = state.trackerMealsPerDay;
+    if (state.dailyProteinTarget != null) prefs.dailyProteinTarget = state.dailyProteinTarget;
+    if (state.dailyCarbsTarget != null) prefs.dailyCarbsTarget = state.dailyCarbsTarget;
+    if (state.dailyFatTarget != null) prefs.dailyFatTarget = state.dailyFatTarget;
+    if (state.dailyCalorieTarget != null) prefs.dailyCalorieTarget = state.dailyCalorieTarget;
     await setStoredPreferences(prefs);
   },
 }));

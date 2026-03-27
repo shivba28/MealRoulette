@@ -41,7 +41,72 @@
   .recipe-youtube-block--side .youtube-thumbnail__aspect { height: auto; aspect-ratio: 16 / 9; border: 2px solid var(--ink); }
 }
 
+/* Header daily limits dropdown */
+@media (max-width: 1023px) {
+  .header-daily-limits__dropdown {
+    width: min(760px, calc(100vw - 20px));
+    max-height: min(72vh, 640px);
+    padding: 9px 10px;
+  }
+  .header-daily-limits__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 8px;
+  }
+  .header-daily-limits__grid .macro-slider-input {
+    margin-bottom: 0.5rem;
+  }
+  .header-daily-limits__grid .macro-slider__picker-row {
+    margin-bottom: 0.35rem;
+  }
+  .header-daily-limits__grid .macro-slider {
+    margin-top: 0.35rem;
+  }
+  .header-daily-limits__grid .macro-slider__track {
+    height: 0.35rem;
+  }
+  .header-daily-limits__grid .qty-picker {
+    height: 32px;
+    line-height: 32px;
+    max-width: 100%;
+  }
+  .header-daily-limits__grid .qty-picker__track,
+  .header-daily-limits__grid .qty-picker__input {
+    line-height: 32px;
+  }
+  .header-daily-limits__grid .form-field-label {
+    font-size: calc(10px * var(--fs-scale));
+    letter-spacing: 1px;
+  }
+}
+
 /* Macro tracker: tighten pills on phones */
+@media (max-width: 599px) {
+  .header-daily-limits__dropdown {
+    position: fixed;
+    top: 54px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: calc(100vh - 64px);
+    overflow: auto;
+    transform-origin: top center;
+  }
+  .header-daily-limits__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+}
+@media (max-width: 599px) {
+  .macro-tracker-bar__expanded {
+    padding: 10px 12px;
+  }
+  .macro-tracker-bar__row {
+    margin-bottom: 7px;
+  }
+  .bar-label {
+    margin-bottom: 2px;
+  }
+}
 @media (max-width: 599px) {
   .macro-tracker-bar__chevron{transform: translateX(-15px);}
   .macro-tracker-bar__collapsed { gap: 8px; padding: 10px 12px; }

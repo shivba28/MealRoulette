@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_CALORIE_CAP_PER_MEAL } from '@mealroulette/shared-types';
 import { useMacroPreferenceStore } from '@/state/macroPreferenceStore';
 import { TagSearchInput } from '@/components/TagSearchInput';
@@ -69,20 +69,9 @@ function splitIngredients(
   return result;
 }
 
-export interface PreferencesFormProps {
-  onSubmit?: () => void;
-  submitLabel?: string;
-}
+export interface PreferencesFormProps {}
 
-export interface PreferencesFormRef {
-  save: () => Promise<void>;
-}
-
-export const PreferencesForm = React.forwardRef<PreferencesFormRef | null, PreferencesFormProps>(
-  function PreferencesForm(
-    { onSubmit },
-    ref
-  ) {
+export function PreferencesForm() {
   const {
     proteinTarget,
     carbsTarget,
@@ -104,6 +93,8 @@ export const PreferencesForm = React.forwardRef<PreferencesFormRef | null, Prefe
   const [carbs, setCarbs] = useState<string[]>([]);
   const [fats, setFats] = useState<string[]>([]);
   const hasInitializedRef = useRef(false);
+  const hasHydratedAutosaveRef = useRef(false);
+  const autosaveTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     loadFromStorage().then(() => {
@@ -124,27 +115,48 @@ export const PreferencesForm = React.forwardRef<PreferencesFormRef | null, Prefe
     });
   }, [loadFromStorage]);
 
-  const save = useCallback(async () => {
-    const combined = [...proteins, ...vegetables, ...carbs, ...fats];
-    setPreferredIngredients(combined);
-    await persistToStorage();
-    onSubmit?.();
-  }, [proteins, vegetables, carbs, fats, setPreferredIngredients, persistToStorage, onSubmit]);
+  useEffect(() => {
+    if (!hasInitializedRef.current) return;
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
 
-  useImperativeHandle(ref, () => ({ save }), [save]);
+    // Skip one pass right after hydration to avoid unnecessary writeback.
+    if (!hasHydratedAutosaveRef.current) {
+      hasHydratedAutosaveRef.current = true;
+      return;
+    }
 
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      await save();
-    },
-    [save]
-  );
+    autosaveTimerRef.current = window.setTimeout(() => {
+      const combined = [...proteins, ...vegetables, ...carbs, ...fats];
+      setPreferredIngredients(combined);
+      void persistToStorage();
+    }, 300);
+
+    return () => {
+      if (autosaveTimerRef.current !== null) {
+        window.clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [
+    proteins,
+    vegetables,
+    carbs,
+    fats,
+    proteinTarget,
+    carbsTarget,
+    fatTarget,
+    calorieCap,
+    maxCookTimeMinutes,
+    setPreferredIngredients,
+    persistToStorage,
+  ]);
 
   return (
     <form
       className="preferences-form"
-      onSubmit={handleSubmit}
       data-testid="preferences-form"
     >
       <div className="pref-wrap">
@@ -263,15 +275,12 @@ export const PreferencesForm = React.forwardRef<PreferencesFormRef | null, Prefe
               </div>
             </div>
 
-            <button type="submit" className="pref-submit">
-              Save Preferences
-            </button>
             <p className="annotation" style={{ marginTop: 8 }}>
-              saved to your device, no account needed
+              changes save automatically to your device
             </p>
           </div>
         </div>
       </div>
     </form>
   );
-});
+}

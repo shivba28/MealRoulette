@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { RouletteView } from '@/components/RouletteView';
 import { PreferencesForm } from '@/components/PreferencesForm';
-import type { PreferencesFormRef } from '@/components/PreferencesForm';
 import { HeroPanel } from '@/components/HeroPanel';
 import { AppHeader } from '@/components/AppHeader';
 import { HistoryBookmark } from '@/components/HistoryBookmark';
@@ -20,9 +19,7 @@ import type { PullCordHandle } from '@/components/PullCord/PullCord';
 import { DEFAULT_CALORIE_CAP_PER_MEAL } from '@mealroulette/shared-types';
 
 const VISITED_KEY = 'meal-roulette-visited';
-
-/** Prefs are per meal; tracker compares today’s intake to ~3 meals × targets. */
-const MEALS_PER_DAY_FOR_TRACKER = 3;
+const DEFAULT_TRACKER_MEALS_PER_DAY = 3;
 
 function App() {
   const loadFromStorage = useMacroPreferenceStore((s) => s.loadFromStorage);
@@ -31,6 +28,10 @@ function App() {
   const carbsTarget = useMacroPreferenceStore((s) => s.carbsTarget);
   const fatTarget = useMacroPreferenceStore((s) => s.fatTarget);
   const calorieCap = useMacroPreferenceStore((s) => s.calorieCap ?? DEFAULT_CALORIE_CAP_PER_MEAL);
+  const dailyProteinTarget = useMacroPreferenceStore((s) => s.dailyProteinTarget);
+  const dailyCarbsTarget = useMacroPreferenceStore((s) => s.dailyCarbsTarget);
+  const dailyFatTarget = useMacroPreferenceStore((s) => s.dailyFatTarget);
+  const dailyCalorieTarget = useMacroPreferenceStore((s) => s.dailyCalorieTarget);
   const maxCookTimeMinutes = useMacroPreferenceStore((s) => s.maxCookTimeMinutes);
   const preferredIngredients = useMacroPreferenceStore((s) => s.preferredIngredients ?? []);
   const [hasEntered, setHasEntered] = useState(false);
@@ -41,7 +42,6 @@ function App() {
   const heroRef = useRef<HTMLDivElement>(null);
   const historyBookmarkRef = useRef<HTMLButtonElement | null>(null);
   const macroTrackerRef = useRef<MacroTrackerBarRef | null>(null);
-  const prefsFormRef = useRef<PreferencesFormRef | null>(null);
   const prefsWrapperRef = useRef<HTMLDivElement>(null);
   const prefsScreenRef = useRef<HTMLDivElement>(null);
   const prefsRollerBarRef = useRef<HTMLDivElement>(null);
@@ -109,12 +109,11 @@ function App() {
     }
   }, []);
 
-  const handleEditPreferences = useCallback(async () => {
+  const handleEditPreferences = useCallback(() => {
     if (formCollapsed) {
       setFormCollapsed(false);
       setRouletteKey((k) => k + 1);
     } else {
-      await prefsFormRef.current?.save();
       setFormCollapsed(true);
     }
   }, [formCollapsed]);
@@ -197,6 +196,9 @@ function App() {
     if (prefsPullingRef.current) return;
     const expandedHeight = 5000;
     if (formCollapsed) {
+      // If the open state removed maxHeight, restore a numeric value so the close animation works.
+      const currentH = wrapper.offsetHeight || wrapper.scrollHeight || 0;
+      gsap.set(wrapper, { maxHeight: currentH, overflow: 'hidden' });
       if (screen) gsap.to(screen, { scaleY: 0, duration: 0.28, ease: 'power2.in', transformOrigin: 'top center' });
       gsap.to(wrapper, { maxHeight: 0, duration: 0.3, ease: 'power2.in', overflow: 'hidden', delay: 0.02 });
       if (bar) gsap.to(bar, { y: 0, duration: 0.3, ease: 'power2.in', delay: 0.02 });
@@ -207,7 +209,7 @@ function App() {
       prefsOpenHeightRef.current = openHeight;
 
       // Start from whatever state we're currently in (e.g. partially open from a pull).
-      const currentH = wrapper.offsetHeight;
+      const currentH = wrapper.offsetHeight || 0;
       const currentScale = screen ? (gsap.getProperty(screen, 'scaleY') as number) : 0;
 
       gsap.set(wrapper, { maxHeight: currentH, overflow: 'hidden' });
@@ -216,7 +218,16 @@ function App() {
 
       const openDuration = 0.3;
       const openEase = 'power2.out';
-      gsap.to(wrapper, { maxHeight: openHeight, duration: openDuration, ease: openEase, overflow: 'hidden' });
+      gsap.to(wrapper, {
+        maxHeight: openHeight,
+        duration: openDuration,
+        ease: openEase,
+        overflow: 'hidden',
+        onComplete: () => {
+          // Keep a large numeric maxHeight so growth is not clipped, while preserving close animation.
+          gsap.set(wrapper, { maxHeight: expandedHeight, overflow: 'hidden' });
+        },
+      });
       if (bar) gsap.to(bar, { y: 0, duration: openDuration, ease: openEase });
       if (screen) {
         gsap.to(screen, {
@@ -301,7 +312,7 @@ function App() {
               aria-hidden={formCollapsed}
             >
               <div ref={prefsScreenRef} className="app__preferences-screen">
-                <PreferencesForm ref={prefsFormRef} />
+                <PreferencesForm />
               </div>
             </div>
             <div ref={prefsRollerBarRef} className="app__preferences-roller-bar" aria-hidden />
@@ -323,10 +334,10 @@ function App() {
       <MacroTrackerBar
         ref={macroTrackerRef}
         targets={{
-          protein: proteinTarget * MEALS_PER_DAY_FOR_TRACKER,
-          carbs: carbsTarget * MEALS_PER_DAY_FOR_TRACKER,
-          fat: fatTarget * MEALS_PER_DAY_FOR_TRACKER,
-          calories: calorieCap * MEALS_PER_DAY_FOR_TRACKER,
+          protein: dailyProteinTarget ?? proteinTarget * DEFAULT_TRACKER_MEALS_PER_DAY,
+          carbs: dailyCarbsTarget ?? carbsTarget * DEFAULT_TRACKER_MEALS_PER_DAY,
+          fat: dailyFatTarget ?? fatTarget * DEFAULT_TRACKER_MEALS_PER_DAY,
+          calories: dailyCalorieTarget ?? calorieCap * DEFAULT_TRACKER_MEALS_PER_DAY,
         }}
       />
       <HistoryPanel isOpen={historyOpen} onClose={() => setHistoryOpen(false)} />

@@ -13,6 +13,15 @@ export interface MacroPreferences {
   preferredIngredients?: string[];
   /** Max cooking time in minutes; recipes over this are filtered out. */
   maxCookTimeMinutes?: number;
+  /** Daily tracker limit mode: derive from per-meal values or use direct daily targets. */
+  trackerTargetMode?: 'perMeal' | 'daily';
+  /** Meals per day multiplier when trackerTargetMode is 'perMeal'. */
+  trackerMealsPerDay?: number;
+  /** Optional direct daily tracker targets used when trackerTargetMode is 'daily'. */
+  dailyProteinTarget?: number;
+  dailyCarbsTarget?: number;
+  dailyFatTarget?: number;
+  dailyCalorieTarget?: number;
 }
 
 export const DEFAULT_MACRO_TOLERANCE = 0.15;

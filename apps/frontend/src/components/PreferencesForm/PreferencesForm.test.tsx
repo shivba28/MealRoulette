@@ -2,12 +2,10 @@
  * Tests for PreferencesForm: updates store and persists offline.
  */
 
-import { createRef } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { PreferencesForm } from './PreferencesForm';
-import type { PreferencesFormRef } from './PreferencesForm';
 import { useMacroPreferenceStore } from '@/state/macroPreferenceStore';
 import {
   clearStoredPreferences,
@@ -41,34 +39,30 @@ describe('PreferencesForm', () => {
     });
   });
 
-  it('persists preferences to IndexedDB on save', async () => {
+  it('auto-persists preferences to IndexedDB on change', async () => {
     const user = userEvent.setup();
-    const formRef = createRef<PreferencesFormRef | null>();
-    render(<PreferencesForm ref={formRef} />);
+    render(<PreferencesForm />);
     const proteinInput = screen.getByTestId('pref-protein');
     await user.clear(proteinInput);
     await user.type(proteinInput, '100');
     await waitFor(() => {
       expect(useMacroPreferenceStore.getState().proteinTarget).toBe(100);
     });
-    await formRef.current?.save();
-    const stored = await getStoredPreferences();
-    expect(stored).not.toBeNull();
-    expect(stored!.proteinTarget).toBe(100);
+    await waitFor(async () => {
+      const stored = await getStoredPreferences();
+      expect(stored).not.toBeNull();
+      expect(stored!.proteinTarget).toBe(100);
+    });
   });
 
-  it('calls onSubmit when save is called', async () => {
-    const onSubmit = vi.fn();
-    const formRef = createRef<PreferencesFormRef | null>();
-    render(<PreferencesForm ref={formRef} onSubmit={onSubmit} />);
-    await formRef.current?.save();
-    expect(onSubmit).toHaveBeenCalled();
+  it('does not render manual Save Preferences button', () => {
+    render(<PreferencesForm />);
+    expect(screen.queryByRole('button', { name: /save preferences/i })).not.toBeInTheDocument();
   });
 
-  it('adds preferred ingredients from Proteins search and persists on save', async () => {
+  it('adds preferred ingredients from Proteins search and auto-persists', async () => {
     const user = userEvent.setup();
-    const formRef = createRef<PreferencesFormRef | null>();
-    render(<PreferencesForm ref={formRef} />);
+    render(<PreferencesForm />);
     const proteinsWrapper = screen.getByTestId('pref-proteins');
     const searchInput = within(proteinsWrapper).getByPlaceholderText(/search proteins/i);
     await user.click(searchInput);
@@ -78,7 +72,9 @@ describe('PreferencesForm', () => {
     });
     await user.click(screen.getByRole('option', { name: /chicken/i }));
     expect(useMacroPreferenceStore.getState().preferredIngredients).not.toContain('Chicken');
-    await formRef.current?.save();
-    expect(useMacroPreferenceStore.getState().preferredIngredients).toContain('Chicken');
+    await waitFor(() => {
+      expect(useMacroPreferenceStore.getState().preferredIngredients).toContain('Chicken');
+    });
   });
+
 });
