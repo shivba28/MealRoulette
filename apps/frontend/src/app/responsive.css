@@ -16,8 +16,9 @@
   .main-layout { padding: 12px; }
   .spin-zone { gap: 12px; padding: 6px 0 16px; }
   .prefs-summary { padding: 10px 12px; }
-  .roulette-view {margin-top: 50px; padding: 1.5rem 0rem; max-width: 100%;}
-  .recipe-result-card {margin-top: 0px;}
+  .roulette-view {margin-top: -50px; padding: 1.5rem 0rem; max-width: 100%;}
+  .recipe-result-card {margin-top: -50px;}
+  .app__pull-cord-wrap {padding-left: 0px; padding-right: 0px;}
 }
 @media (max-width: 599px) {
   .main-layout { padding: 10px; }
