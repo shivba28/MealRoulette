@@ -16,8 +16,8 @@
   .main-layout { padding: 12px; }
   .spin-zone { gap: 12px; padding: 6px 0 16px; }
   .prefs-summary { padding: 10px 12px; }
-  .roulette-view {margin-top: -50px; padding: 1.5rem 0rem; max-width: 100%;}
-  .recipe-result-card {margin-top: -50px;}
+  .roulette-view {margin-top: -75px; padding: 1.5rem 0rem; max-width: 100%;}
+  .recipe-result-card {margin-top: -75px;}
   .app__pull-cord-wrap {padding-left: 0px; padding-right: 0px;}
 }
 @media (max-width: 599px) {
@@ -82,6 +82,16 @@
 
 /* Macro tracker: tighten pills on phones */
 @media (max-width: 599px) {
+  .header-cloud-backup__dropdown {
+    position: fixed;
+    top: 54px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: min(320px, calc(100vh - 64px));
+    overflow: hidden;
+    transform-origin: top center;
+  }
   .header-daily-limits__dropdown {
     position: fixed;
     top: 54px;
@@ -89,7 +99,7 @@
     right: 8px;
     width: auto;
     max-height: calc(100vh - 64px);
-    overflow: auto;
+    overflow: hidden;
     transform-origin: top center;
   }
   .header-daily-limits__grid {

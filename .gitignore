@@ -5,6 +5,7 @@ coverage/
 *.log
 .env
 .env.local
+apps/api-gateway/data/
 .DS_Store
 *.tsbuildinfo
 apps/frontend/vite.config.d.ts

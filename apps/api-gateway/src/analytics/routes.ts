@@ -13,10 +13,18 @@
 
 import { type Express, type Request, type Response } from 'express';
 import { randomUUID } from 'crypto';
-import express from 'express';
 import { createRequire } from 'module';
 import type { UserProfile, MacroSum } from '@mealroulette/shared-types';
-import { EMPTY_USER_PROFILE } from '@mealroulette/shared-types';
+
+/** Local copy of shared-types EMPTY_USER_PROFILE — avoids ESM named-export issues under tsx/Node. */
+const EMPTY_USER_PROFILE: UserProfile = {
+  likedTagCounts: {},
+  passedTagCounts: {},
+  likedMacroSum: { protein: 0, carbs: 0, fat: 0, calories: 0 },
+  likedCount: 0,
+  passedMacroSum: { protein: 0, carbs: 0, fat: 0, calories: 0 },
+  passedCount: 0,
+};
 
 const require = createRequire(import.meta.url);
 const { aggregateSwipes, SwipeEvent } = require('../../../../services/analytics-service/dist/infrastructure/index.js');
@@ -96,8 +104,6 @@ function applySwipeToProfile(
 }
 
 export function applyAnalyticsRoutes(app: Express): void {
-  app.use('/api/analytics', express.json({ limit: '100kb' }));
-
   app.post(
     '/api/analytics/swipes',
     (req: Request<object, object, { events?: SwipeEventPayload[] }>, res: Response) => {

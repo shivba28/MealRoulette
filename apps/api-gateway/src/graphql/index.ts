@@ -1,7 +1,6 @@
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
 import express, { type Express } from 'express';
-import cors from 'cors';
 import { typeDefs } from './schema.js';
 import { createResolvers } from './resolvers.js';
 import { GetRecipes } from '../application/GetRecipes.js';
@@ -22,8 +21,6 @@ const app: Express = express();
 export function applyGraphQLMiddleware(): void {
   app.use(
     '/graphql',
-    cors<cors.CorsRequest>(),
-    express.json(),
     expressMiddleware(server, {
       context: async () => ({ getRecipes }),
     })

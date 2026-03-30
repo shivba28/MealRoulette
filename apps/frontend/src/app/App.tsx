@@ -14,6 +14,7 @@ import { flushSwipeQueue } from '@/services/analytics';
 import { getTodayMacroLog } from '@/services/macroLog';
 import type { LoggedMeal } from '@/services/macroLog';
 import { calculateStreak } from '@/utils/streakUtils';
+import { CloudBackupMenu } from '@/components/CloudBackupMenu';
 import { PullCord } from '@/components/PullCord/PullCord';
 import type { PullCordHandle } from '@/components/PullCord/PullCord';
 import { DEFAULT_CALORIE_CAP_PER_MEAL } from '@mealroulette/shared-types';
@@ -188,6 +189,12 @@ function App() {
     setLogVersion((v) => v + 1);
   }, []);
 
+  const reloadLocalStateAfterRestore = useCallback(async () => {
+    await loadFromStorage();
+    await loadProfileFromStorage();
+    setLogVersion((v) => v + 1);
+  }, [loadFromStorage, loadProfileFromStorage]);
+
   useEffect(() => {
     const wrapper = prefsWrapperRef.current;
     const screen = prefsScreenRef.current;
@@ -254,7 +261,13 @@ function App() {
 
   return (
     <>
-      <AppHeader showEditPreferences={false} streak={streak} />
+      <AppHeader
+        showEditPreferences={false}
+        streak={streak}
+        cloudBackup={
+          <CloudBackupMenu dataVersion={logVersion} onLocalRestored={reloadLocalStateAfterRestore} />
+        }
+      />
       <HistoryBookmark
         ref={historyBookmarkRef}
         count={historyCount}

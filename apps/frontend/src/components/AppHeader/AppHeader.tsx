@@ -3,7 +3,7 @@
  * Dices + title (and optional streak); right: Edit Preferences when enabled.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { MacroSliderInput } from '@/components/MacroSliderInput';
 import { useMacroPreferenceStore } from '@/state/macroPreferenceStore';
@@ -13,12 +13,15 @@ export interface AppHeaderProps {
   /** When true, preferences panel is open (e.g. show "Roll up" or keep "Edit Preferences"). */
   preferencesOpen?: boolean;
   streak?: number;
+  /** Optional slot (e.g. Google Drive backup controls). */
+  cloudBackup?: ReactNode;
 }
 
 export function AppHeader({
   onEditPreferences,
   showEditPreferences = false,
   preferencesOpen = false,
+  cloudBackup,
 }: AppHeaderProps) {
   const headerRef = useRef<HTMLElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -99,7 +102,7 @@ export function AppHeader({
       className="app-header sticky top-0 z-50"
     >
       <div className="logo-block">
-        <div className="logo-sq">MR</div>
+        <div className="logo-sq"><img src="/icons/icon-512.svg" alt="Meal Roulette" /></div>
         <div className="app-name">Meal Roulette</div>
       </div>
 
@@ -190,6 +193,7 @@ export function AppHeader({
             </div>
           )}
         </div>
+        {cloudBackup}
         {showEditPreferences && onEditPreferences && (
           <button
             type="button"

@@ -14,6 +14,8 @@ declare module 'canvas-confetti' {
 interface ImportMetaEnv {
   readonly VITE_GRAPHQL_URL?: string;
   readonly VITE_ANALYTICS_URL?: string;
+  /** API origin for OAuth and Drive sync (e.g. https://api.example.com). Empty = same origin. */
+  readonly VITE_API_BASE_URL?: string;
 }
 
 interface ImportMeta {
