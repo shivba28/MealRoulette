@@ -39,7 +39,9 @@ server.start().then(() => {
         // Non-browser clients (no Origin header).
         if (!origin) return callback(null, true);
         const ok = config.frontendOrigins.some((a) => originMatches(a, origin));
-        return callback(ok ? null : new Error('CORS: origin not allowed'), ok);
+        // IMPORTANT: don't throw errors here; cors will treat it as a request error (500).
+        // Return `false` to omit CORS headers, letting the browser enforce the block.
+        return callback(null, ok);
       },
       credentials: true,
     })

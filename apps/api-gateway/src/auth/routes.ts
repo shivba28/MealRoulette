@@ -26,8 +26,9 @@ function oauthClient(): OAuth2Client {
 
 const baseCookie = {
   httpOnly: true,
-  secure: config.isProd,
-  sameSite: 'lax' as const,
+  // Required when SameSite=None (modern browsers reject insecure None cookies).
+  secure: config.isProd || config.cookieSameSite === 'none',
+  sameSite: config.cookieSameSite,
   path: '/',
 };
 
@@ -118,6 +119,8 @@ export function applyAuthRoutes(app: Express): void {
   });
 
   app.get('/api/auth/me', (req: Request, res: Response) => {
+    // Avoid caches / conditional requests causing confusing 304s.
+    res.setHeader('Cache-Control', 'no-store');
     const sid = req.signedCookies?.[SESSION_COOKIE];
     if (!sid) {
       res.json({ authenticated: false as const });

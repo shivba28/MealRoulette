@@ -25,6 +25,16 @@ export const config = {
   dataDir: process.env['DATA_DIR'] ?? 'data',
   /** Set to `consent` if Google omits refresh_token (forces consent screen). */
   googleOauthPrompt: process.env['GOOGLE_OAUTH_PROMPT'] === 'consent' ? 'consent' : undefined,
+  /**
+   * Cookie SameSite mode.
+   * - `lax` is fine for same-site SPA+API.
+   * - `none` is required for cross-site (e.g. Vercel frontend -> Render API) because browsers won't
+   *   send `SameSite=Lax` cookies on XHR/fetch.
+   */
+  cookieSameSite:
+    process.env['COOKIE_SAMESITE'] === 'none'
+      ? ('none' as const)
+      : ('lax' as const),
 } as const;
 
 export function googleOAuthConfigured(): boolean {
