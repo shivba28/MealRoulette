@@ -1,134 +1,55 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { randomBytes } from 'node:crypto';
-import { config } from '../config/env.js';
-import { open, seal } from '../crypto/secretBox.js';
+export type { SessionRecord } from './sessionStoreFile.js';
 
-const FILE_NAME = 'sessions.json';
+type Impl = typeof import('./sessionStoreFile.js');
 
-export interface SessionRecord {
-  encryptedRefreshToken: string;
-  googleSub: string;
-  email: string;
-  driveFileId?: string;
-  createdAt: string;
-}
+let implPromise: Promise<Impl> | null = null;
 
-interface StoreFile {
-  sessions: Record<string, SessionRecord>;
-}
-
-function storePath(): string {
-  const dir = join(process.cwd(), config.dataDir);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-  return join(dir, FILE_NAME);
-}
-
-function readStore(): StoreFile {
-  const path = storePath();
-  if (!existsSync(path)) {
-    return { sessions: {} };
-  }
-  try {
-    const raw = readFileSync(path, 'utf8');
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object' || !('sessions' in parsed)) {
-      return { sessions: {} };
+async function impl(): Promise<Impl> {
+  if (implPromise) return implPromise;
+  implPromise = (async () => {
+    if (process.env['DATABASE_URL']) {
+      return (await import('./sessionStorePg.js')) as unknown as Impl;
     }
-    const sessions = (parsed as StoreFile).sessions;
-    if (!sessions || typeof sessions !== 'object') {
-      return { sessions: {} };
-    }
-    return { sessions: sessions as Record<string, SessionRecord> };
-  } catch {
-    return { sessions: {} };
-  }
+    return (await import('./sessionStoreFile.js')) as unknown as Impl;
+  })();
+  return implPromise;
 }
 
-function atomicWrite(path: string, data: string): void {
-  const tmp = `${path}.${process.pid}.${Date.now()}.tmp`;
-  writeFileSync(tmp, data, 'utf8');
-  renameSync(tmp, path);
-}
-
-function writeStore(store: StoreFile): void {
-  atomicWrite(storePath(), JSON.stringify(store, null, 2));
-}
-
-export function createSession(params: {
+export async function createSession(params: {
   refreshToken: string;
   googleSub: string;
   email: string;
-}): string {
-  const sessionId = randomBytes(32).toString('hex');
-  const store = readStore();
-  store.sessions[sessionId] = {
-    encryptedRefreshToken: seal(params.refreshToken, config.sessionSecret),
-    googleSub: params.googleSub,
-    email: params.email,
-    createdAt: new Date().toISOString(),
-  };
-  writeStore(store);
-  return sessionId;
+}): Promise<string> {
+  const i = await impl();
+  return (i as any).createSession(params);
 }
 
-export function getSession(sessionId: string): SessionRecord | null {
-  const store = readStore();
-  return store.sessions[sessionId] ?? null;
+export async function getSession(sessionId: string) {
+  const i = await impl();
+  return (i as any).getSession(sessionId);
 }
 
-function newer(a: SessionRecord, b: SessionRecord): SessionRecord {
-  const at = Date.parse(a.createdAt);
-  const bt = Date.parse(b.createdAt);
-  if (!Number.isFinite(at) || !Number.isFinite(bt)) return a;
-  return at >= bt ? a : b;
+export async function getLatestSessionForGoogleSub(googleSub: string) {
+  const i = await impl();
+  return (i as any).getLatestSessionForGoogleSub(googleSub);
 }
 
-export function getLatestSessionForGoogleSub(googleSub: string): SessionRecord | null {
-  const store = readStore();
-  let best: SessionRecord | null = null;
-  for (const rec of Object.values(store.sessions)) {
-    if (rec.googleSub !== googleSub) continue;
-    best = best ? newer(best, rec) : rec;
-  }
-  return best;
+export async function deleteSession(sessionId: string): Promise<void> {
+  const i = await impl();
+  return (i as any).deleteSession(sessionId);
 }
 
-export function deleteSession(sessionId: string): void {
-  const store = readStore();
-  if (store.sessions[sessionId]) {
-    delete store.sessions[sessionId];
-    writeStore(store);
-  }
+export async function setDriveFileId(sessionId: string, driveFileId: string): Promise<void> {
+  const i = await impl();
+  return (i as any).setDriveFileId(sessionId, driveFileId);
 }
 
-export function setDriveFileId(sessionId: string, driveFileId: string): void {
-  const store = readStore();
-  const rec = store.sessions[sessionId];
-  if (rec) {
-    rec.driveFileId = driveFileId;
-    writeStore(store);
-  }
+export async function getRefreshToken(sessionId: string): Promise<string | null> {
+  const i = await impl();
+  return (i as any).getRefreshToken(sessionId);
 }
 
-export function getRefreshToken(sessionId: string): string | null {
-  const rec = getSession(sessionId);
-  if (!rec) return null;
-  try {
-    return open(rec.encryptedRefreshToken, config.sessionSecret);
-  } catch {
-    return null;
-  }
-}
-
-export function getLatestRefreshTokenForGoogleSub(googleSub: string): string | null {
-  const rec = getLatestSessionForGoogleSub(googleSub);
-  if (!rec) return null;
-  try {
-    return open(rec.encryptedRefreshToken, config.sessionSecret);
-  } catch {
-    return null;
-  }
+export async function getLatestRefreshTokenForGoogleSub(googleSub: string): Promise<string | null> {
+  const i = await impl();
+  return (i as any).getLatestRefreshTokenForGoogleSub(googleSub);
 }

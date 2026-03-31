@@ -105,7 +105,7 @@ export function applyAuthRoutes(app: Express): void {
       }
 
       const refreshToken =
-        tokens.refresh_token ?? getLatestRefreshTokenForGoogleSub(googleSub);
+        tokens.refresh_token ?? (await getLatestRefreshTokenForGoogleSub(googleSub));
       if (!refreshToken) {
         res.redirect(
           appendQuery(config.frontendUrl, {
@@ -115,7 +115,7 @@ export function applyAuthRoutes(app: Express): void {
         );
         return;
       }
-      const sessionId = createSession({
+      const sessionId = await createSession({
         refreshToken,
         googleSub,
         email,
@@ -144,22 +144,26 @@ export function applyAuthRoutes(app: Express): void {
       res.json({ authenticated: false as const });
       return;
     }
-    const rec = getSession(sid);
-    if (!rec) {
-      res.json({ authenticated: false as const });
-      return;
-    }
-    res.json({
-      authenticated: true as const,
-      email: rec.email,
-    });
+    void (async () => {
+      const rec = await getSession(sid);
+      if (!rec) {
+        res.json({ authenticated: false as const });
+        return;
+      }
+      res.json({
+        authenticated: true as const,
+        email: rec.email,
+      });
+    })();
   });
 
   app.post('/api/auth/logout', (req: Request, res: Response) => {
-    const sid = bearerToken(req);
-    if (sid) {
-      deleteSession(sid);
-    }
-    res.status(204).send();
+    void (async () => {
+      const sid = bearerToken(req);
+      if (sid) {
+        await deleteSession(sid);
+      }
+      res.status(204).send();
+    })();
   });
 }

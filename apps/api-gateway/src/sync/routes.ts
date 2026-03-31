@@ -9,9 +9,9 @@ function bearerToken(req: Request): string | null {
   return m?.[1] ?? null;
 }
 
-function requireSession(req: Request, res: Response): string | null {
+async function requireSession(req: Request, res: Response): Promise<string | null> {
   const sid = bearerToken(req);
-  if (!sid || !getSession(sid)) {
+  if (!sid || !(await getSession(sid))) {
     res.status(401).json({ error: 'Unauthorized' });
     return null;
   }
@@ -20,7 +20,7 @@ function requireSession(req: Request, res: Response): string | null {
 
 export function applySyncRoutes(app: Express): void {
   app.get('/api/sync/backup', async (req: Request, res: Response) => {
-    const sid = requireSession(req, res);
+    const sid = await requireSession(req, res);
     if (!sid) return;
     try {
       const raw = await readBackupFromDrive(sid);
@@ -38,7 +38,7 @@ export function applySyncRoutes(app: Express): void {
   app.put(
     '/api/sync/backup',
     async (req: Request, res: Response) => {
-      const sid = requireSession(req, res);
+      const sid = await requireSession(req, res);
       if (!sid) return;
       try {
         await writeBackupToDrive(sid, JSON.stringify(req.body));

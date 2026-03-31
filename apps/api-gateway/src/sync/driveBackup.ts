@@ -5,8 +5,8 @@ import { getRefreshToken, getSession, setDriveFileId } from '../auth/sessionStor
 
 const BACKUP_NAME = 'mealroulette-backup.json';
 
-function driveForSession(sessionId: string) {
-  const refresh = getRefreshToken(sessionId);
+async function driveForSession(sessionId: string) {
+  const refresh = await getRefreshToken(sessionId);
   if (!refresh) return null;
   const oauth2 = new OAuth2Client(
     config.googleClientId,
@@ -66,9 +66,9 @@ async function ensureBackupFileId(
 }
 
 export async function readBackupFromDrive(sessionId: string): Promise<string> {
-  const drive = driveForSession(sessionId);
+  const drive = await driveForSession(sessionId);
   if (!drive) throw new Error('Invalid session');
-  const rec = getSession(sessionId);
+  const rec = await getSession(sessionId);
   if (!rec) throw new Error('Invalid session');
   const validated = await validateCachedId(drive, rec.driveFileId);
   const fileId = validated ?? (await findExistingBackupFileId(drive));
@@ -77,7 +77,7 @@ export async function readBackupFromDrive(sessionId: string): Promise<string> {
     (err as any).code = 'BACKUP_NOT_FOUND';
     throw err;
   }
-  if (fileId !== rec.driveFileId) setDriveFileId(sessionId, fileId);
+  if (fileId !== rec.driveFileId) await setDriveFileId(sessionId, fileId);
   const res = await drive.files.get(
     { fileId, alt: 'media' },
     { responseType: 'text' }
@@ -90,12 +90,12 @@ export async function readBackupFromDrive(sessionId: string): Promise<string> {
 }
 
 export async function writeBackupToDrive(sessionId: string, jsonBody: string): Promise<void> {
-  const drive = driveForSession(sessionId);
+  const drive = await driveForSession(sessionId);
   if (!drive) throw new Error('Invalid session');
-  const rec = getSession(sessionId);
+  const rec = await getSession(sessionId);
   if (!rec) throw new Error('Invalid session');
   const fileId = await ensureBackupFileId(drive, rec.driveFileId);
-  if (fileId !== rec.driveFileId) setDriveFileId(sessionId, fileId);
+  if (fileId !== rec.driveFileId) await setDriveFileId(sessionId, fileId);
   await drive.files.update({
     fileId,
     media: {
