@@ -5,7 +5,6 @@ import { google } from 'googleapis';
 import { config, googleOAuthConfigured } from '../config/env.js';
 import { createSession, deleteSession, getSession } from './sessionStore.js';
 
-const SESSION_COOKIE = 'mr_session';
 const OAUTH_STATE_COOKIE = 'mr_oauth_state';
 
 function appendQuery(url: string, params: Record<string, string>): string {
@@ -13,6 +12,12 @@ function appendQuery(url: string, params: Record<string, string>): string {
   for (const [k, v] of Object.entries(params)) {
     u.searchParams.set(k, v);
   }
+  return u.toString();
+}
+
+function appendHash(url: string, fragment: string): string {
+  const u = new URL(url);
+  u.hash = fragment.startsWith('#') ? fragment : `#${fragment}`;
   return u.toString();
 }
 
@@ -107,28 +112,32 @@ export function applyAuthRoutes(app: Express): void {
         googleSub,
         email,
       });
-      res.cookie(SESSION_COOKIE, sessionId, {
-        ...baseCookie,
-        maxAge: 400 * 24 * 60 * 60 * 1000,
-        signed: true,
-      });
-      res.redirect(appendQuery(config.frontendUrl, { sync: 'ok' }));
+      // Safari may block cross-site cookies (ITP). Return the session id as an opaque bearer token.
+      // Put the token in the fragment so it isn't sent to the server as a query param / referrer.
+      const frontWithSync = appendQuery(config.frontendUrl, { sync: 'ok' });
+      res.redirect(appendHash(frontWithSync, `token=${encodeURIComponent(sessionId)}`));
     } catch {
       res.redirect(appendQuery(config.frontendUrl, { sync: 'error', reason: 'token_exchange' }));
     }
   });
 
+  function bearerToken(req: Request): string | null {
+    const h = req.header('authorization');
+    if (!h) return null;
+    const m = /^Bearer\s+(.+)\s*$/i.exec(h);
+    return m?.[1] ?? null;
+  }
+
   app.get('/api/auth/me', (req: Request, res: Response) => {
     // Avoid caches / conditional requests causing confusing 304s.
     res.setHeader('Cache-Control', 'no-store');
-    const sid = req.signedCookies?.[SESSION_COOKIE];
+    const sid = bearerToken(req);
     if (!sid) {
       res.json({ authenticated: false as const });
       return;
     }
     const rec = getSession(sid);
     if (!rec) {
-      res.clearCookie(SESSION_COOKIE, { ...baseCookie, signed: true });
       res.json({ authenticated: false as const });
       return;
     }
@@ -139,11 +148,10 @@ export function applyAuthRoutes(app: Express): void {
   });
 
   app.post('/api/auth/logout', (req: Request, res: Response) => {
-    const sid = req.signedCookies?.[SESSION_COOKIE];
+    const sid = bearerToken(req);
     if (sid) {
       deleteSession(sid);
     }
-    res.clearCookie(SESSION_COOKIE, { ...baseCookie, signed: true });
     res.status(204).send();
   });
 }

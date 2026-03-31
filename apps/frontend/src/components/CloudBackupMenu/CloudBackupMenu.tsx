@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   applyCloudBackupPayload,
+  captureAuthTokenFromUrl,
+  collectLocalBackup,
   fetchAuthMe,
   logoutAuth,
   pullBackupFromServer,
+  pushBackupToServer,
   pushLocalBackupNow,
   startGoogleSignIn,
 } from '@/services/cloudBackup';
@@ -21,6 +24,7 @@ type SyncSource = 'manual' | 'auto';
 
 const LAST_SYNC_KEY = 'mr-drive-last-sync-at';
 const LAST_SYNC_STATUS_KEY = 'mr-drive-last-sync-status';
+const BOOTSTRAP_DONE_KEY = 'mr-drive-bootstrap-done';
 
 function formatLocalTime(iso: string): string {
   const d = new Date(iso);
@@ -76,7 +80,44 @@ export function CloudBackupMenu({ dataVersion, onLocalRestored }: CloudBackupMen
     setEmail(me.authenticated && me.email ? me.email : null);
   }, []);
 
+  const bootstrapSync = useCallback(async () => {
+    try {
+      const already = window.localStorage.getItem(BOOTSTRAP_DONE_KEY) === '1';
+      if (already) return;
+      const me = await fetchAuthMe();
+      if (!me.authenticated) return;
+
+      setBanner('Checking Drive backup…');
+      const local = await collectLocalBackup();
+      const remote = await pullBackupFromServer();
+      if (!remote) {
+        await pushBackupToServer(local);
+        setBanner('Backed up this device to Google Drive.');
+      } else {
+        const localTs = Date.parse(local.updatedAt);
+        const remoteTs = Date.parse(remote.updatedAt);
+        const shouldRestore =
+          Number.isFinite(remoteTs) && Number.isFinite(localTs)
+            ? remoteTs > localTs
+            : Boolean(remote.updatedAt && !local.updatedAt);
+
+        if (shouldRestore) {
+          await applyCloudBackupPayload(remote);
+          await onLocalRestored();
+          setBanner('Restored from Google Drive.');
+        } else {
+          await pushBackupToServer(local);
+          setBanner('Backed up this device to Google Drive.');
+        }
+      }
+      window.localStorage.setItem(BOOTSTRAP_DONE_KEY, '1');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Sync failed');
+    }
+  }, [onLocalRestored]);
+
   useEffect(() => {
+    const gotToken = captureAuthTokenFromUrl();
     void refreshMe();
     loadLastSync();
     const params = new URLSearchParams(window.location.search);
@@ -84,6 +125,7 @@ export function CloudBackupMenu({ dataVersion, onLocalRestored }: CloudBackupMen
     if (sync === 'ok') {
       setBanner('Signed in with Google. Your data can sync to Drive.');
       void refreshMe();
+      void bootstrapSync();
       params.delete('sync');
       const qs = params.toString();
       window.history.replaceState(
@@ -91,6 +133,8 @@ export function CloudBackupMenu({ dataVersion, onLocalRestored }: CloudBackupMen
         '',
         `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`
       );
+    } else if (gotToken) {
+      void bootstrapSync();
     } else if (sync === 'error') {
       const reason = params.get('reason') ?? 'unknown';
       setError(
@@ -107,7 +151,7 @@ export function CloudBackupMenu({ dataVersion, onLocalRestored }: CloudBackupMen
         `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`
       );
     }
-  }, [refreshMe]);
+  }, [refreshMe, bootstrapSync]);
 
   useEffect(() => {
     return () => {

@@ -44,6 +44,7 @@ server.start().then(() => {
         return callback(null, ok);
       },
       credentials: true,
+      allowedHeaders: ['Content-Type', 'Authorization'],
     })
   );
 

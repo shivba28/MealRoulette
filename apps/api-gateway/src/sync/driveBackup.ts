@@ -17,26 +17,37 @@ function driveForSession(sessionId: string) {
   return google.drive({ version: 'v3', auth: oauth2 });
 }
 
-async function findBackupFileId(
+async function validateCachedId(
   drive: ReturnType<typeof google.drive>,
   cached?: string
-): Promise<string> {
-  if (cached) {
-    try {
-      await drive.files.get({ fileId: cached, fields: 'id' });
-      return cached;
-    } catch {
-      // stale id
-    }
+): Promise<string | null> {
+  if (!cached) return null;
+  try {
+    await drive.files.get({ fileId: cached, fields: 'id' });
+    return cached;
+  } catch {
+    return null;
   }
+}
+
+async function findExistingBackupFileId(drive: ReturnType<typeof google.drive>): Promise<string | null> {
   const list = await drive.files.list({
     spaces: 'appDataFolder',
     q: `name = '${BACKUP_NAME.replace(/'/g, "\\'")}' and trashed = false`,
     fields: 'files(id)',
     pageSize: 10,
   });
-  const id = list.data.files?.[0]?.id;
-  if (id) return id;
+  return list.data.files?.[0]?.id ?? null;
+}
+
+async function ensureBackupFileId(
+  drive: ReturnType<typeof google.drive>,
+  cached?: string
+): Promise<string> {
+  const validated = await validateCachedId(drive, cached);
+  if (validated) return validated;
+  const existing = await findExistingBackupFileId(drive);
+  if (existing) return existing;
   const created = await drive.files.create({
     requestBody: {
       name: BACKUP_NAME,
@@ -59,10 +70,14 @@ export async function readBackupFromDrive(sessionId: string): Promise<string> {
   if (!drive) throw new Error('Invalid session');
   const rec = getSession(sessionId);
   if (!rec) throw new Error('Invalid session');
-  const fileId = await findBackupFileId(drive, rec.driveFileId);
-  if (fileId !== rec.driveFileId) {
-    setDriveFileId(sessionId, fileId);
+  const validated = await validateCachedId(drive, rec.driveFileId);
+  const fileId = validated ?? (await findExistingBackupFileId(drive));
+  if (!fileId) {
+    const err = new Error('Backup not found');
+    (err as any).code = 'BACKUP_NOT_FOUND';
+    throw err;
   }
+  if (fileId !== rec.driveFileId) setDriveFileId(sessionId, fileId);
   const res = await drive.files.get(
     { fileId, alt: 'media' },
     { responseType: 'text' }
@@ -79,10 +94,8 @@ export async function writeBackupToDrive(sessionId: string, jsonBody: string): P
   if (!drive) throw new Error('Invalid session');
   const rec = getSession(sessionId);
   if (!rec) throw new Error('Invalid session');
-  const fileId = await findBackupFileId(drive, rec.driveFileId);
-  if (fileId !== rec.driveFileId) {
-    setDriveFileId(sessionId, fileId);
-  }
+  const fileId = await ensureBackupFileId(drive, rec.driveFileId);
+  if (fileId !== rec.driveFileId) setDriveFileId(sessionId, fileId);
   await drive.files.update({
     fileId,
     media: {
