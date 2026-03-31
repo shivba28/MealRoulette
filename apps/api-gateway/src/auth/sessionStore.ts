@@ -79,6 +79,23 @@ export function getSession(sessionId: string): SessionRecord | null {
   return store.sessions[sessionId] ?? null;
 }
 
+function newer(a: SessionRecord, b: SessionRecord): SessionRecord {
+  const at = Date.parse(a.createdAt);
+  const bt = Date.parse(b.createdAt);
+  if (!Number.isFinite(at) || !Number.isFinite(bt)) return a;
+  return at >= bt ? a : b;
+}
+
+export function getLatestSessionForGoogleSub(googleSub: string): SessionRecord | null {
+  const store = readStore();
+  let best: SessionRecord | null = null;
+  for (const rec of Object.values(store.sessions)) {
+    if (rec.googleSub !== googleSub) continue;
+    best = best ? newer(best, rec) : rec;
+  }
+  return best;
+}
+
 export function deleteSession(sessionId: string): void {
   const store = readStore();
   if (store.sessions[sessionId]) {
@@ -98,6 +115,16 @@ export function setDriveFileId(sessionId: string, driveFileId: string): void {
 
 export function getRefreshToken(sessionId: string): string | null {
   const rec = getSession(sessionId);
+  if (!rec) return null;
+  try {
+    return open(rec.encryptedRefreshToken, config.sessionSecret);
+  } catch {
+    return null;
+  }
+}
+
+export function getLatestRefreshTokenForGoogleSub(googleSub: string): string | null {
+  const rec = getLatestSessionForGoogleSub(googleSub);
   if (!rec) return null;
   try {
     return open(rec.encryptedRefreshToken, config.sessionSecret);

@@ -1685,6 +1685,7 @@
   padding: 1.5rem 1rem;
   max-width: 90%;
   margin: auto;
+  margin-top: -45px;
 }
 .roulette-view__cta {
   display: inline-block;

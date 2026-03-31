@@ -3,7 +3,12 @@ import type { Express, Request, Response } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 import { config, googleOAuthConfigured } from '../config/env.js';
-import { createSession, deleteSession, getSession } from './sessionStore.js';
+import {
+  createSession,
+  deleteSession,
+  getLatestRefreshTokenForGoogleSub,
+  getSession,
+} from './sessionStore.js';
 
 const OAUTH_STATE_COOKIE = 'mr_oauth_state';
 
@@ -87,15 +92,6 @@ export function applyAuthRoutes(app: Express): void {
     try {
       const client = oauthClient();
       const { tokens } = await client.getToken(code);
-      if (!tokens.refresh_token) {
-        res.redirect(
-          appendQuery(config.frontendUrl, {
-            sync: 'error',
-            reason: 'no_refresh_token',
-          })
-        );
-        return;
-      }
       client.setCredentials(tokens);
       const oauth2 = google.oauth2({ version: 'v2', auth: client });
       const { data } = await oauth2.userinfo.get();
@@ -107,8 +103,20 @@ export function applyAuthRoutes(app: Express): void {
         );
         return;
       }
+
+      const refreshToken =
+        tokens.refresh_token ?? getLatestRefreshTokenForGoogleSub(googleSub);
+      if (!refreshToken) {
+        res.redirect(
+          appendQuery(config.frontendUrl, {
+            sync: 'error',
+            reason: 'no_refresh_token',
+          })
+        );
+        return;
+      }
       const sessionId = createSession({
-        refreshToken: tokens.refresh_token,
+        refreshToken,
         googleSub,
         email,
       });
