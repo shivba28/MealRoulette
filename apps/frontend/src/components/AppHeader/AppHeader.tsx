@@ -102,7 +102,7 @@ export function AppHeader({
       className="app-header sticky top-0 z-50"
     >
       <div className="logo-block">
-        <div className="logo-sq"><img src="/icons/icon-512.svg" alt="Meal Roulette" /></div>
+        {/* <div className="logo-sq"><img src="/icons/icon-512.svg" alt="Meal Roulette" /></div> */}
         <div className="app-name">Meal Roulette</div>
       </div>
 
