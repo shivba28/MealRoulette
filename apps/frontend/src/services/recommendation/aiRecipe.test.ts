@@ -125,7 +125,7 @@ describe('generateAIRecipesBatch', () => {
 });
 
 describe('generateSingleRecipeForRoulette', () => {
-  it('returns one recipe with cuisineType (mock when no API key)', async () => {
+  it('returns one recipe with a concrete title and detailed steps (template when no API key)', async () => {
     const prefs: MacroPreferences = {
       proteinTarget: 90,
       carbsTarget: 200,
@@ -135,10 +135,11 @@ describe('generateSingleRecipeForRoulette', () => {
     const recipe = await generateSingleRecipeForRoulette(prefs);
     expect(recipe).not.toBeNull();
     expect(recipe!.id).toMatch(/^ai-/);
-    expect(recipe!.name).toBeDefined();
+    expect(recipe!.name.length).toBeGreaterThan(12);
+    expect(recipe!.name.toLowerCase()).not.toContain('ai-suggested');
     expect(recipe!.cuisineType).toBeDefined();
-    expect(Array.isArray(recipe!.ingredients)).toBe(true);
-    expect(Array.isArray(recipe!.steps)).toBe(true);
+    expect(recipe!.ingredients!.length).toBeGreaterThanOrEqual(5);
+    expect(recipe!.steps!.length).toBeGreaterThanOrEqual(5);
     expect(recipe!.isAiGenerated).toBe(true);
   });
 

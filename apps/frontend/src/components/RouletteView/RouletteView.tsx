@@ -2,7 +2,7 @@
  * Roulette experience: wheel spin (or skip) then recipe reveal. Matches meal_roulette_screen3_wheel.html behavior.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Recipe } from '@mealroulette/shared-types';
 import { gsap } from 'gsap';
 import { generateSingleRecipeForRoulette } from '@/services/recommendation';
@@ -102,7 +102,11 @@ export function RouletteView({ onAddMeal }: RouletteViewProps) {
 
     maxWaitTimerRef.current = window.setTimeout(() => {
       if (requestIdRef.current !== requestId) return;
-      if (recipeRef.current) return;
+      if (recipeRef.current) {
+        stopContinuousSpin();
+        setAnimationDone(true);
+        return;
+      }
       stopContinuousSpin();
       setRecipeReady(true);
       setAnimationDone(true);
@@ -116,17 +120,32 @@ export function RouletteView({ onAddMeal }: RouletteViewProps) {
     setAnimationDone(true);
   }, []);
 
-  /* Run wheel rotation when entering spinning and not skipping. */
-  useEffect(() => {
+  /*
+   * After Re-spin the wheel SVG remounts. Setting transition + transform in one paint without a
+   * committed "from" state makes some browsers skip the transition and omit transitionend — then
+   * animationDone never flips and the UI stays stuck. Flush with transition 'none' + reflow first.
+   */
+  useLayoutEffect(() => {
     if (phase !== 'spinning' || skipAnimation) return;
     const el = wheelSvgRef.current;
     if (!el) return;
     wheelRotationRef.current += 1080 + Math.floor(Math.random() * 360);
     const deg = wheelRotationRef.current;
     const durationSec = WHEEL_SPIN_DURATION_MS / 1000;
+    el.style.transition = 'none';
+    el.style.transform = 'rotate(0deg)';
+    void el.getBoundingClientRect();
     el.style.transition = `transform ${durationSec}s ${WHEEL_SPIN_EASE}`;
     el.style.transform = `rotate(${deg}deg)`;
   }, [phase, skipAnimation]);
+
+  /* If the recipe is back but transitionend never fired, unstick after the expected spin duration. */
+  useEffect(() => {
+    if (phase !== 'spinning' || skipAnimation || animationDone || !recipeReady) return;
+    const ms = WHEEL_SPIN_DURATION_MS + 500;
+    const t = window.setTimeout(() => setAnimationDone(true), ms);
+    return () => window.clearTimeout(t);
+  }, [phase, skipAnimation, animationDone, recipeReady]);
 
   useEffect(() => {
     if (!animationDone || !recipeReady) return;

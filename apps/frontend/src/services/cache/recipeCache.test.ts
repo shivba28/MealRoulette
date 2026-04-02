@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { Recipe } from '@mealroulette/shared-types';
 import {
   getRecipesFromCache,
+  peekRecipesFromCache,
   putRecipesInCache,
   getCacheRecipeCount,
   clearRecipeCache,
@@ -70,5 +71,15 @@ describe('recipeCache', () => {
     expect(await getCacheRecipeCount()).toBe(0);
     const got = await getRecipesFromCache(10);
     expect(got).toEqual([]);
+  });
+
+  it('peekRecipesFromCache does not remove rows', async () => {
+    await putRecipesInCache([mockRecipe('1'), mockRecipe('2')]);
+    const peeked = await peekRecipesFromCache(10);
+    expect(peeked.map((r) => r.id)).toEqual(['1', '2']);
+    expect(await getCacheRecipeCount()).toBe(2);
+    const consumed = await getRecipesFromCache(1);
+    expect(consumed.map((r) => r.id)).toEqual(['1']);
+    expect(await getCacheRecipeCount()).toBe(1);
   });
 });

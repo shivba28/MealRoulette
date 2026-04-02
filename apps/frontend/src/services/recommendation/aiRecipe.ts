@@ -4,6 +4,8 @@
  * - Batch: generateAIRecipesBatch(prefs, 10) — one prompt for 10 meals (ingredients, steps, macros).
  *   Used by the deck so user gets 10 LLM-generated cards; when they run out, we call again for 10 more.
  * - Single: generateAIRecipe(prefs) — one recipe (for backward compat / prefetch).
+ * - Roulette: generateSingleRecipeForRoulette — prefers IndexedDB cache (deck prefetch), then Groq/HF with
+ *   quality checks + retry prompt; last resort is detailed template meals (rouletteTemplates.ts).
  *
  * Priority: VITE_GROQ_API_KEY (free, fast) → VITE_HF_TOKEN (Hugging Face free tier) → mock recipes.
  * Macro preferences are per meal; prompts ask the LLM to hit those targets per serving.
@@ -16,9 +18,11 @@ import {
   type RecipeMacros,
   type UserProfile,
 } from '@mealroulette/shared-types';
-import { putRecipesInCache } from '@/services/cache';
+import { peekRecipesFromCache, putRecipesInCache } from '@/services/cache';
 import { useMacroPreferenceStore } from '@/state/macroPreferenceStore';
 import { useUserProfileStore } from '@/state/userProfileStore';
+import { scoreRecipe } from './scoreRecipe';
+import { buildRouletteFallbackRecipe } from './rouletteTemplates';
 
 const AI_RECIPE_PREFIX = 'ai-';
 const GROQ_MODEL = 'llama-3.1-8b-instant';
@@ -26,6 +30,8 @@ const GROQ_MAX_TOKENS = 4096;
 const HF_MODEL = 'mistralai/Mistral-7B-Instruct-v0.2';
 const HF_MAX_TOKENS = 4096;
 const BATCH_SIZE_DEFAULT = 10;
+const ROULETTE_CACHE_PEEK_LIMIT = 48;
+const ROULETTE_MACRO_SCORE_FLOOR = 0.22;
 
 function now(): string {
   return new Date().toISOString();
@@ -113,10 +119,81 @@ function buildMockRecipe(
   };
 }
 
+function normalizeAvoidSet(names: string[]): Set<string> {
+  return new Set(names.map((n) => n.trim().toLowerCase()).filter((n) => n.length > 0));
+}
+
+function conflictsAvoid(recipeName: string, avoid: Set<string>): boolean {
+  const n = recipeName.trim().toLowerCase();
+  if (!n) return true;
+  for (const a of avoid) {
+    if (n === a) return true;
+    if (a.length >= 6 && n.includes(a)) return true;
+    if (n.length >= 6 && a.includes(n)) return true;
+  }
+  return false;
+}
+
+function isCacheCandidateForRoulette(r: Recipe): boolean {
+  const name = (r.name ?? '').trim();
+  const ing = r.ingredients ?? [];
+  const steps = r.steps ?? [];
+  return name.length >= 3 && ing.length >= 3 && steps.length >= 3;
+}
+
+function pickBestCachedForRoulette(
+  candidates: Recipe[],
+  prefs: MacroPreferences,
+  avoid: Set<string>
+): Recipe | null {
+  const filtered = candidates.filter(
+    (r) => !conflictsAvoid((r.name ?? '').trim(), avoid) && isCacheCandidateForRoulette(r)
+  );
+  if (filtered.length === 0) return null;
+  const scored = filtered
+    .map((r) => ({ r, s: scoreRecipe(r, prefs).score }))
+    .filter((x) => x.s >= ROULETTE_MACRO_SCORE_FLOOR)
+    .sort((a, b) => b.s - a.s);
+  const pool = scored.length > 0 ? scored : filtered.map((r) => ({ r, s: scoreRecipe(r, prefs).score })).sort((a, b) => b.s - a.s);
+  return pool[0]!.r;
+}
+
+function cloneRecipeForRoulette(base: Recipe): Recipe {
+  return {
+    ...base,
+    id: uniqueAiId(),
+    tags: Array.from(new Set([...(base.tags ?? []), 'roulette'])),
+    createdAt: now(),
+    updatedAt: now(),
+  };
+}
+
+const GENERIC_ROULETTE_NAME =
+  /^(ai[- ]?suggested\s*meal|ai[- ]?suggested|tonight[\u2019']s\s*pick|recipe|meal|dish|food)$/i;
+
+function rouletteMeetsQualityBar(recipe: Recipe): boolean {
+  const name = (recipe.name ?? '').trim();
+  if (name.length < 8) return false;
+  if (GENERIC_ROULETTE_NAME.test(name)) return false;
+  const ing = recipe.ingredients ?? [];
+  const steps = recipe.steps ?? [];
+  if (ing.length < 5) return false;
+  if (steps.length < 5) return false;
+  const substantiveIng = ing.filter((line) => line.trim().length >= 10).length;
+  if (substantiveIng < 4) return false;
+  const avgStepLen = steps.reduce((a, s) => a + s.length, 0) / steps.length;
+  if (avgStepLen < 30) return false;
+  const blob = steps.join(' ').toLowerCase();
+  if (blob.includes('combine and cook as desired')) return false;
+  if (blob.includes('see steps for ingredients')) return false;
+  return true;
+}
+
 /** Groq Chat Completions (free tier). Returns content or null. Uses JSON mode when possible. */
 async function callGroq(
   userMessage: string,
-  apiKey: string
+  apiKey: string,
+  opts?: { temperature?: number }
 ): Promise<string | null> {
   const url = 'https://api.groq.com/openai/v1/chat/completions';
   try {
@@ -137,7 +214,7 @@ async function callGroq(
           { role: 'user', content: userMessage },
         ],
         max_tokens: GROQ_MAX_TOKENS,
-        temperature: 0.6,
+        temperature: opts?.temperature ?? 0.6,
         response_format: { type: 'json_object' as const },
       }),
     });
@@ -154,7 +231,8 @@ async function callGroq(
 async function callHuggingFace(
   prompt: string,
   token: string,
-  maxTokens: number = HF_MAX_TOKENS
+  maxTokens: number = HF_MAX_TOKENS,
+  opts?: { temperature?: number }
 ): Promise<string | null> {
   const url = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
   try {
@@ -169,7 +247,7 @@ async function callHuggingFace(
         parameters: {
           max_new_tokens: maxTokens,
           return_full_text: false,
-          temperature: 0.6,
+          temperature: opts?.temperature ?? 0.6,
         },
       }),
     });
@@ -187,7 +265,8 @@ async function callHuggingFace(
 /** Build prompt for roulette: one decisive recipe. Include avoidRecipeNames (e.g. last 5 "Made it") so LLM doesn't repeat. */
 function buildPromptForRoulette(
   prefs: MacroPreferences,
-  avoidRecipeNames: string[] = []
+  avoidRecipeNames: string[] = [],
+  strictRetry = false
 ): string {
   const protein = Math.round(prefs.proteinTarget);
   const carbs = Math.round(prefs.carbsTarget);
@@ -201,28 +280,46 @@ function buildPromptForRoulette(
   const prefIng = prefs.preferredIngredients ?? [];
   const ingredients =
     prefIng.length > 0
-      ? `Preferred ingredients: ${prefIng.join(', ')}.`
-      : 'Use a variety of common ingredients.';
+      ? `Preferred ingredients to feature where sensible: ${prefIng.join(', ')}.`
+      : 'Use common supermarket ingredients.';
 
   const avoid =
     avoidRecipeNames.length > 0
-      ? ` Do NOT suggest any of these (user already made them): ${avoidRecipeNames.join(', ')}. Pick something different.`
+      ? ` Do NOT suggest any dish whose name matches or closely resembles: ${avoidRecipeNames.join(', ')}. Choose something clearly different.`
       : '';
 
-  return `You are a meal recommender. Choose the single best meal given these constraints. Return only ONE recipe. Do not hedge or offer alternatives.
+  const qualityBlock = strictRetry
+    ? `
+Your last answer was rejected for being too vague or generic. This response MUST:
+- Use a specific, searchable dish title (e.g. "Harissa sheet-pan chicken with roasted carrots"), NOT words like "Meal", "Dish", "Recipe", or "AI-suggested".
+- Include at least 6 ingredients; each line must include amounts and units (oz, lb, tbsp, tsp, cups) where appropriate.
+- Include at least 6 steps; each step is one or two full sentences with practical detail: prep, pan/oven heat, times, visual/doneness cues (e.g. internal temperature for meat), and how to finish the plate.
+- Do not use placeholder lines such as "Cook until done" without explaining how to tell, or "Combine ingredients" without naming what goes in the pan in what order.
+`
+    : `
+Write like a cookbook for a confident home cook:
+- "name" must be a real dish title someone would type into a search engine.
+- At least 6 ingredients with quantities; name the cut of meat, type of dairy, etc. where it matters.
+- At least 6 steps covering prep through serving; mention approximate times, heat levels (medium-high, simmer), and safety/doneness.
+- Macros should be realistic for one serving and approximately match the targets below.
+`;
 
-Return a JSON object with exactly this structure (no other keys, no markdown):
+  return `You are an experienced recipe developer. Invent exactly ONE complete dinner recipe that fits the user's nutrition targets. Return only ONE recipe. No alternatives, no markdown, no commentary.
+
+${qualityBlock}
+
+Return a JSON object with exactly this structure (no other top-level keys):
 {
-  "name": "string (recipe name)",
-  "cuisineType": "string (e.g. Italian, Mexican, Asian)",
-  "description": "string (one sentence)",
-  "cookTimeMinutes": number (total time, under ${cookMin}),
+  "name": "string",
+  "cuisineType": "string (e.g. Italian, Mexican, Japanese-inspired)",
+  "description": "string (one appetizing sentence)",
+  "cookTimeMinutes": number (active + passive under ${cookMin}),
   "macros": { "calories": number, "protein": number, "carbs": number, "fat": number },
-  "ingredients": ["string with quantity e.g. 2 chicken breasts", "..."],
-  "steps": ["string (step 1)", "string (step 2)", "..."]
+  "ingredients": ["string with amounts", "..."],
+  "steps": ["string", "..."]
 }
 
-Constraints: Aim for roughly protein ${protein}g, carbs ${carbs}g, fat ${fat}g, calories ${calories} per serving. Max cook time ${cookMin} minutes. ${ingredients}${avoid}
+Targets per serving: about ${protein}g protein, ${carbs}g carbs, ${fat}g fat, ${calories} kcal. Max total time ${cookMin} minutes. ${ingredients}${avoid}
 
 Output only the JSON object.`;
 }
@@ -470,38 +567,58 @@ function parseSingleRecipeFromRouletteAI(
 }
 
 /**
- * Generate exactly one recipe for the roulette reveal. Decisive prompt; no alternatives.
- * Pass avoidRecipeNames (e.g. last 5 "Made it" meals) so the LLM avoids repeating.
+ * Generate exactly one recipe for the roulette reveal.
+ * 1) Prefer a macro-matching recipe already in IndexedDB (deck prefetch) when it does not conflict with avoid list.
+ * 2) Otherwise call Groq / Hugging Face with a detail-heavy prompt; retry once with stricter instructions if output is too thin.
+ * 3) Offline or parse failure: rotate through detailed template meals with real titles, ingredients, and steps.
  */
 export async function generateSingleRecipeForRoulette(
   prefs: MacroPreferences,
   avoidRecipeNames: string[] = []
 ): Promise<Recipe | null> {
-  const id = uniqueAiId();
-  const fallbackMacro = macroFromProfile(null, prefs);
-  const prompt = buildPromptForRoulette(prefs, avoidRecipeNames);
+  const profile = useUserProfileStore.getState();
+  const fallbackMacro = macroFromProfile(profile, prefs);
+  const avoidNorm = normalizeAvoidSet(avoidRecipeNames);
+
+  try {
+    const cached = await peekRecipesFromCache(ROULETTE_CACHE_PEEK_LIMIT);
+    const best = pickBestCachedForRoulette(cached, prefs, avoidNorm);
+    if (best) return cloneRecipeForRoulette(best);
+  } catch {
+    /* IndexedDB unavailable in some environments */
+  }
 
   const groqKey = import.meta.env['VITE_GROQ_API_KEY'] as string | undefined;
   if (groqKey) {
-    const text = await callGroq(prompt, groqKey);
-    if (text) {
-      const recipe = parseSingleRecipeFromRouletteAI(text, id, fallbackMacro);
-      if (recipe) return recipe;
+    for (const strictRetry of [false, true]) {
+      const rid = uniqueAiId();
+      const prompt = buildPromptForRoulette(prefs, avoidRecipeNames, strictRetry);
+      const text = await callGroq(prompt, groqKey, {
+        temperature: strictRetry ? 0.78 : 0.55,
+      });
+      if (text) {
+        const recipe = parseSingleRecipeFromRouletteAI(text, rid, fallbackMacro);
+        if (recipe && rouletteMeetsQualityBar(recipe)) return recipe;
+      }
     }
   }
 
   const hfToken = import.meta.env['VITE_HF_TOKEN'] as string | undefined;
   if (hfToken) {
-    const text = await callHuggingFace(prompt, hfToken, 2048);
-    if (text) {
-      const recipe = parseSingleRecipeFromRouletteAI(text, id, fallbackMacro);
-      if (recipe) return recipe;
+    for (const strictRetry of [false, true]) {
+      const rid = uniqueAiId();
+      const prompt = buildPromptForRoulette(prefs, avoidRecipeNames, strictRetry);
+      const text = await callHuggingFace(prompt, hfToken, strictRetry ? 3072 : 2048, {
+        temperature: strictRetry ? 0.75 : 0.55,
+      });
+      if (text) {
+        const recipe = parseSingleRecipeFromRouletteAI(text, rid, fallbackMacro);
+        if (recipe && rouletteMeetsQualityBar(recipe)) return recipe;
+      }
     }
   }
 
-  const mock = buildMockRecipe(prefs, null, id);
-  mock.cuisineType = 'General';
-  return mock;
+  return buildRouletteFallbackRecipe(uniqueAiId(), prefs, fallbackMacro, avoidRecipeNames);
 }
 
 /**

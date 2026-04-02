@@ -48,6 +48,22 @@ function getDB(): Promise<IDBPDatabase<RecipeCacheSchema>> {
 }
 
 /**
+ * Read up to `limit` recipes from cache (oldest by order) without removing them.
+ * Used by roulette to prefer an existing prefetched meal before calling the LLM.
+ */
+export async function peekRecipesFromCache(limit: number): Promise<Recipe[]> {
+  const db = await getDB();
+  const tx = db.transaction(STORE_RECIPES, 'readonly');
+  const store = tx.objectStore(STORE_RECIPES);
+  const index = store.index(INDEX_ORDER);
+  const all = await index.getAll();
+  const sorted = all.sort((a, b) => a.order - b.order);
+  const slice = sorted.slice(0, limit);
+  await tx.done;
+  return slice.map((r) => r.recipe);
+}
+
+/**
  * Get up to `limit` recipes from cache (oldest by order), and remove them from the store.
  * So the deck "consumes" from cache; next call gets the next batch.
  */

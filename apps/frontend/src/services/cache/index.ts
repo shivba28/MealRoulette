@@ -1,5 +1,6 @@
 export {
   getRecipesFromCache,
+  peekRecipesFromCache,
   putRecipesInCache,
   getCacheRecipeCount,
   clearRecipeCache,
