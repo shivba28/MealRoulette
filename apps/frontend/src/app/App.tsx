@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { RouletteView } from '@/components/RouletteView';
 import { PreferencesForm } from '@/components/PreferencesForm';
@@ -22,6 +22,13 @@ import { DEFAULT_CALORIE_CAP_PER_MEAL } from '@mealroulette/shared-types';
 const VISITED_KEY = 'meal-roulette-visited';
 const DEFAULT_TRACKER_MEALS_PER_DAY = 3;
 
+const ROULETTE_INTRO_WHEEL_SEC = 2;
+/** Shared duration: wheel travels to its slot while header/prefs/macro/history slide in. */
+const ROULETTE_INTRO_CHROME_SEC = 0.5;
+/** One ease for every reveal tween so motion starts/ends together visually. */
+const ROULETTE_INTRO_REVEAL_EASE = 'power2.out';
+const ROULETTE_INTRO_REF_RETRY_MAX = 12;
+
 function App() {
   const loadFromStorage = useMacroPreferenceStore((s) => s.loadFromStorage);
   const loadProfileFromStorage = useUserProfileStore((s) => s.loadFromStorage);
@@ -40,9 +47,23 @@ function App() {
   const [rouletteKey, setRouletteKey] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [logVersion, setLogVersion] = useState(0);
+  const [rouletteSpinChromeVisible, setRouletteSpinChromeVisible] = useState(false);
+  const [rouletteSpinTitleOpaque, setRouletteSpinTitleOpaque] = useState(false);
+  const [rouletteSpinTitleExpanded, setRouletteSpinTitleExpanded] = useState(false);
+  const [rouletteIntroComplete, setRouletteIntroComplete] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
   const historyBookmarkRef = useRef<HTMLButtonElement | null>(null);
+  const historyHostRef = useRef<HTMLDivElement | null>(null);
+  const historyBookmarkSlideRef = useRef<HTMLDivElement | null>(null);
   const macroTrackerRef = useRef<MacroTrackerBarRef | null>(null);
+  const macroTrackerDomRef = useRef<HTMLDivElement | null>(null);
+  const appHeaderRef = useRef<HTMLElement | null>(null);
+  const prefsChromeRef = useRef<HTMLDivElement | null>(null);
+  const rouletteWheelRef = useRef<HTMLButtonElement | null>(null);
+  const rouletteWheelSlotRef = useRef<HTMLDivElement | null>(null);
+  const introOverlayRef = useRef<HTMLDivElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const rouletteIntroPlayedRef = useRef(false);
   const prefsWrapperRef = useRef<HTMLDivElement>(null);
   const prefsScreenRef = useRef<HTMLDivElement>(null);
   const prefsRollerBarRef = useRef<HTMLDivElement>(null);
@@ -76,21 +97,213 @@ function App() {
 
   // Keep the history bookmark slide perfectly synced with the panel GSAP timing.
   useEffect(() => {
+    if (!rouletteIntroComplete) return;
     const el = historyBookmarkRef.current;
+    const host = historyHostRef.current;
     if (!el) return;
     // Keep in sync with CSS: panel is full width on <= 767px, otherwise max 500px.
     const panelW =
       window.innerWidth <= 767 ? window.innerWidth : Math.min(500, window.innerWidth);
     const targetShift = historyOpen ? `-${panelW + 0}px` : '0px';
-    gsap.killTweensOf(el);
+    const rightVal = window.innerWidth <= 767 ? (historyOpen ? '-30px' : '0px') : '0px';
+    const tweenTargets: (HTMLElement | SVGElement)[] = [el];
+    if (host) tweenTargets.push(host);
+    gsap.killTweensOf(tweenTargets);
     gsap.to(el, {
       duration: 0.4,
       ease: historyOpen ? 'power2.out' : 'power2.inOut',
       '--bookmark-shift': targetShift,
-      right: window.innerWidth <= 767 ? (historyOpen ? '-30px' : '0px') : '0px',
-    } as any);
-    gsap.to(".history-bookmark__icon-wrap", { duration: 0.4, ease: 'power2.inOut', top: historyOpen ? '-10px' : '0px' });
-  }, [historyOpen]);
+    } as gsap.TweenVars);
+    if (host) {
+      gsap.to(host, {
+        duration: 0.4,
+        ease: historyOpen ? 'power2.out' : 'power2.inOut',
+        right: rightVal,
+      });
+    }
+    gsap.to('.history-bookmark__icon-wrap', {
+      duration: 0.4,
+      ease: 'power2.inOut',
+      top: historyOpen ? '-10px' : '0px',
+    });
+  }, [historyOpen, rouletteIntroComplete]);
+
+  useLayoutEffect(() => {
+    if (!hasEntered || rouletteIntroPlayedRef.current) return;
+
+    let cancelled = false;
+    let retries = 0;
+
+    const run = () => {
+      if (cancelled || rouletteIntroPlayedRef.current) return;
+
+      const wheel = rouletteWheelRef.current;
+      const wheelSlot = rouletteWheelSlotRef.current;
+      const header = appHeaderRef.current;
+      const prefs = prefsChromeRef.current;
+      const macro = macroTrackerDomRef.current;
+      const overlay = introOverlayRef.current;
+      const historyHost = historyHostRef.current;
+      const historySlide = historyBookmarkSlideRef.current;
+      const wrap = wrapRef.current;
+      const svg = wheel?.querySelector<SVGElement>('.wsvg');
+
+      if (!wheel || !wheelSlot || !header || !prefs || !macro || !overlay || !historyHost || !historySlide || !wrap || !svg) {
+        retries += 1;
+        if (retries < ROULETTE_INTRO_REF_RETRY_MAX) {
+          requestAnimationFrame(run);
+        } else {
+          rouletteIntroPlayedRef.current = true;
+          setRouletteSpinTitleOpaque(true);
+          setRouletteSpinTitleExpanded(true);
+          setRouletteSpinChromeVisible(true);
+          setRouletteIntroComplete(true);
+        }
+        return;
+      }
+
+      rouletteIntroPlayedRef.current = true;
+      const wheelRect = wheel.getBoundingClientRect();
+
+      gsap.set([header, prefs], { opacity: 0, y: -48, pointerEvents: 'none' });
+      gsap.set(macro, { opacity: 0, y: 72, pointerEvents: 'none' });
+      gsap.set(historySlide, { opacity: 0, x: 72, pointerEvents: 'none' });
+      gsap.set(wrap, { pointerEvents: 'none' });
+      gsap.set(overlay, { opacity: 1, pointerEvents: 'auto' });
+
+      gsap.set(wheel, {
+        position: 'fixed',
+        zIndex: 70,
+        left: '50%',
+        top: '50%',
+        xPercent: -50,
+        yPercent: -50,
+        width: wheelRect.width,
+        height: wheelRect.height,
+        scale: 0.04,
+        pointerEvents: 'none',
+      });
+
+      const revealAt = ROULETTE_INTRO_WHEEL_SEC;
+      const revealEnd = ROULETTE_INTRO_WHEEL_SEC + ROULETTE_INTRO_CHROME_SEC;
+      const tl = gsap.timeline({
+        onComplete: () => {
+          if (cancelled) return;
+          setRouletteIntroComplete(true);
+          [header, prefs, macro, historySlide, wheel, wrap].forEach((node) => {
+            if (node) gsap.set(node, { clearProps: 'pointerEvents' });
+          });
+        },
+      });
+
+      tl.to(
+        wheel,
+        { scale: 1, duration: ROULETTE_INTRO_WHEEL_SEC, ease: 'power2.out' },
+        0
+      );
+      tl.to(
+        svg,
+        {
+          rotation: '+=720',
+          duration: ROULETTE_INTRO_WHEEL_SEC,
+          ease: 'none',
+          transformOrigin: '50% 50%',
+        },
+        0
+      );
+
+      tl.call(() => {
+        if (!cancelled) setRouletteSpinTitleOpaque(true);
+      }, undefined, revealAt);
+
+      tl.fromTo(
+        wheel,
+        { x: 0, y: 0 },
+        {
+          x: () => {
+            const slot = rouletteWheelSlotRef.current;
+            if (!slot) return 0;
+            const r = slot.getBoundingClientRect();
+            return r.left + r.width / 2 - window.innerWidth / 2;
+          },
+          y: () => {
+            const slot = rouletteWheelSlotRef.current;
+            if (!slot) return 0;
+            const r = slot.getBoundingClientRect();
+            return r.top + r.height / 2 - window.innerHeight / 2;
+          },
+          duration: ROULETTE_INTRO_CHROME_SEC,
+          ease: ROULETTE_INTRO_REVEAL_EASE,
+          force3D: true,
+        },
+        revealAt
+      );
+
+      tl.to(
+        overlay,
+        {
+          opacity: 0,
+          duration: ROULETTE_INTRO_CHROME_SEC,
+          ease: ROULETTE_INTRO_REVEAL_EASE,
+          pointerEvents: 'none',
+        },
+        revealAt
+      );
+
+      tl.add(() => {
+        if (cancelled) return;
+        gsap.killTweensOf(svg);
+        gsap.set(svg, { clearProps: 'transform' });
+        gsap.set(wheel, {
+          clearProps:
+            'position,top,left,width,height,zIndex,scale,xPercent,yPercent,x,y,transform,pointerEvents',
+        });
+        gsap.set(overlay, { opacity: 0, pointerEvents: 'none' });
+        gsap.set(wrap, { pointerEvents: 'auto' });
+        setRouletteSpinTitleExpanded(true);
+        setRouletteSpinChromeVisible(true);
+      }, revealEnd);
+
+      tl.to(
+        [header, prefs],
+        {
+          opacity: 1,
+          y: 0,
+          duration: ROULETTE_INTRO_CHROME_SEC,
+          ease: ROULETTE_INTRO_REVEAL_EASE,
+          pointerEvents: 'auto',
+        },
+        revealAt
+      );
+      tl.to(
+        macro,
+        {
+          opacity: 1,
+          y: 0,
+          duration: ROULETTE_INTRO_CHROME_SEC,
+          ease: ROULETTE_INTRO_REVEAL_EASE,
+          pointerEvents: 'auto',
+        },
+        revealAt
+      );
+      tl.to(
+        historySlide,
+        {
+          opacity: 1,
+          x: 0,
+          duration: ROULETTE_INTRO_CHROME_SEC,
+          ease: ROULETTE_INTRO_REVEAL_EASE,
+          pointerEvents: 'auto',
+        },
+        revealAt
+      );
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasEntered]);
 
   const handleEnter = useCallback(() => {
     if (typeof localStorage !== 'undefined') {
@@ -261,22 +474,30 @@ function App() {
 
   return (
     <>
+      <div ref={introOverlayRef} className="roulette-intro-overlay" aria-hidden />
       <AppHeader
+        ref={appHeaderRef}
+        suppressMountEntrance
         showEditPreferences={false}
         streak={streak}
         cloudBackup={
           <CloudBackupMenu dataVersion={logVersion} onLocalRestored={reloadLocalStateAfterRestore} />
         }
       />
-      <HistoryBookmark
-        ref={historyBookmarkRef}
-        count={historyCount}
-        historyOpen={historyOpen}
-        onClick={() => setHistoryOpen((v) => !v)}
-      />
-      <div className="wrap">
+      <div ref={historyHostRef} className="app__history-bookmark-host">
+        <div ref={historyBookmarkSlideRef} className="app__history-bookmark-intro-slide">
+          <HistoryBookmark
+            ref={historyBookmarkRef}
+            count={historyCount}
+            historyOpen={historyOpen}
+            onClick={() => setHistoryOpen((v) => !v)}
+          />
+        </div>
+      </div>
+      <div ref={wrapRef} className="wrap">
         <div className="main-layout">
-          <div className="prefs-summary">
+          <div ref={prefsChromeRef} className="app__roulette-top-chrome">
+            <div className="prefs-summary">
             <div className="prefs-summary__content">
               <div className="prefs-summary__cols">
                 <div className="prefs-summary__col prefs-summary__col--targets">
@@ -316,9 +537,9 @@ function App() {
                 {formCollapsed ? 'Edit prefs' : '▲ Close prefs'}
               </button>
             </div>
-          </div>
+            </div>
 
-          <div className="app__preferences-roller">
+            <div className="app__preferences-roller">
             <div
               ref={prefsWrapperRef}
               className="app__preferences-wrapper"
@@ -329,23 +550,34 @@ function App() {
               </div>
             </div>
             <div ref={prefsRollerBarRef} className="app__preferences-roller-bar" aria-hidden />
+            </div>
+            <div className="app__pull-cord-wrap">
+              <PullCord
+                ref={pullCordRef}
+                isOpen={!formCollapsed}
+                onToggle={handleEditPreferences}
+                // Pull-to-preview only when closed; keep tug-to-close when open.
+                tugThreshold={formCollapsed ? 9999 : 50}
+                onPullProgress={handlePrefsPullProgress}
+                onPullEnd={handlePrefsPullEnd}
+              />
+            </div>
           </div>
-          <div className="app__pull-cord-wrap">
-            <PullCord
-              ref={pullCordRef}
-              isOpen={!formCollapsed}
-              onToggle={handleEditPreferences}
-              // Pull-to-preview only when closed; keep tug-to-close when open.
-              tugThreshold={formCollapsed ? 9999 : 50}
-              onPullProgress={handlePrefsPullProgress}
-              onPullEnd={handlePrefsPullEnd}
-            />
-          </div>
-          <RouletteView key={rouletteKey} onAddMeal={handleAddMeal} />
+          <RouletteView
+            key={rouletteKey}
+            onAddMeal={handleAddMeal}
+            wheelContainerRef={rouletteWheelRef}
+            wheelSlotRef={rouletteWheelSlotRef}
+            hideSpinZoneChrome={!rouletteSpinChromeVisible}
+            spinTitleOpaque={rouletteSpinTitleOpaque}
+            spinTitleExpanded={rouletteSpinTitleExpanded}
+          />
         </div>
       </div>
       <MacroTrackerBar
         ref={macroTrackerRef}
+        domRootRef={macroTrackerDomRef}
+        suppressMountEntrance
         targets={{
           protein: dailyProteinTarget ?? proteinTarget * DEFAULT_TRACKER_MEALS_PER_DAY,
           carbs: dailyCarbsTarget ?? carbsTarget * DEFAULT_TRACKER_MEALS_PER_DAY,

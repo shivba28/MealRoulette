@@ -176,6 +176,7 @@
 
 /* Screen 2 (pre-spin) layout blocks */
 .main-layout { padding: 16px; }
+.app__roulette-top-chrome { display: block; }
 .prefs-summary {
   background: rgba(255,255,255,.5);
   border: 2px solid var(--ink);
@@ -224,6 +225,55 @@
 .macro-pill { font-family: var(--font-body); font-size: calc(13px * var(--fs-scale)); font-weight: 600; padding: 2px 9px; border: 1.5px solid var(--ink); color: var(--ink); }
 
 .spin-zone { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 8px 0 20px; }
+/* max-height/margin/padding/border 0.5s — keep in sync with ROULETTE_INTRO_CHROME_SEC in App.tsx */
+.spin-zone__title {
+  align-self: flex-start;
+  width: 100%;
+  overflow: hidden;
+  transition:
+    opacity 0.5s cubic-bezier(0.33, 1, 0.68, 1) 0.2s,
+    max-height 0.5s cubic-bezier(0.33, 1, 0.68, 1),
+    margin-bottom 0.5s cubic-bezier(0.33, 1, 0.68, 1),
+    padding-bottom 0.5s cubic-bezier(0.33, 1, 0.68, 1),
+    border-bottom-width 0.5s cubic-bezier(0.33, 1, 0.68, 1);
+}
+/* Intro: hidden. */
+.spin-zone__title--fully-collapsed {
+  opacity: 0;
+  max-height: 10rem;
+  margin-bottom: 10px;
+  padding-bottom: 3px;
+  border-bottom-width: 1.5px;
+  pointer-events: none;
+}
+/* Opacity on with header slide; max-height still 0 so wheel slot does not move during wheel tween. */
+.spin-zone__title--opaque-collapsed {
+  opacity: 1;
+  max-height: 10rem;
+  margin-bottom: 10px;
+  padding-bottom: 3px;
+  border-bottom-width: 1.5px;
+  pointer-events: none;
+}
+.spin-zone__title--expanded {
+  opacity: 1;
+  max-height: 10rem;
+}
+/* Reserves layout while the real wheel is position:fixed during intro (matches .wheel-container size). */
+.spin-zone__wheel-slot {
+  width: clamp(200px, 56vw, 240px);
+  height: clamp(200px, 56vw, 240px);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.spin-zone--extras-hidden .skip-animation,
+.spin-zone--extras-hidden .spin-btn,
+.spin-zone--extras-hidden .annotation {
+  display: none;
+}
 .skip-animation {
   display: flex;
   align-items: center;
@@ -2971,6 +3021,40 @@
   margin-top: 3px;
 }
 .hist-pills .tag { font-size: calc(12px * var(--fs-scale)); padding: 1px 7px; }
+
+/* Host wraps the bookmark so page-load intro can slide it on the X axis without fighting panel shift transforms. */
+.app__history-bookmark-host {
+  position: fixed;
+  top: 50%;
+  right: max(0px, env(safe-area-inset-right, 0px));
+  z-index: 61;
+  transform: translateY(-50%);
+}
+.app__history-bookmark-intro-slide {
+  display: flex;
+  justify-content: flex-end;
+}
+.app__history-bookmark-host .history-bookmark {
+  position: static;
+  top: auto;
+  right: auto;
+  margin: 0;
+  transform: translateX(var(--bookmark-shift)) rotate(90deg);
+}
+
+/* Full-screen backdrop during roulette intro — same paper + grid as .wrap so it is not a flat void. */
+.roulette-intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+  opacity: 0;
+}
 
 /* History bookmark — fixed right edge, vertical center (opens meal history) */
 .history-bookmark {

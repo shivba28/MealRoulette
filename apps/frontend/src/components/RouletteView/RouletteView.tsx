@@ -2,7 +2,14 @@
  * Roulette experience: wheel spin (or skip) then recipe reveal. Matches meal_roulette_screen3_wheel.html behavior.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from 'react';
 import type { Recipe } from '@mealroulette/shared-types';
 import { gsap } from 'gsap';
 import { generateSingleRecipeForRoulette } from '@/services/recommendation';
@@ -18,6 +25,16 @@ const MAX_RESULT_WAIT_MS = 25000;
 
 export interface RouletteViewProps {
   onAddMeal?: (meal: LoggedMeal) => void;
+  /** Ref to the wheel button (for coordinated page-load intro in App). */
+  wheelContainerRef?: MutableRefObject<HTMLButtonElement | null>;
+  /** Hide skip / CTA / hints (intro); “Tonight’s roulette” uses phased intro (App drives timing). */
+  hideSpinZoneChrome?: boolean;
+  /** Title opacity phase (with chrome slide). Default true for standalone use. */
+  spinTitleOpaque?: boolean;
+  /** Title expands vertically after wheel lands; keeps wheel target stable during tween. Default true. */
+  spinTitleExpanded?: boolean;
+  /** In-flow slot for wheel position (intro measures this while the button is fixed). */
+  wheelSlotRef?: MutableRefObject<HTMLDivElement | null>;
 }
 
 function getPrefs(): import('@mealroulette/shared-types').MacroPreferences {
@@ -45,7 +62,14 @@ function getStoredSkipAnimation(): boolean {
   }
 }
 
-export function RouletteView({ onAddMeal }: RouletteViewProps) {
+export function RouletteView({
+  onAddMeal,
+  wheelContainerRef: externalWheelContainerRef,
+  hideSpinZoneChrome = false,
+  spinTitleOpaque = true,
+  spinTitleExpanded = true,
+  wheelSlotRef: externalWheelSlotRef,
+}: RouletteViewProps) {
   const [phase, setPhase] = useState<'idle' | 'spinning' | 'reveal'>('idle');
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +83,27 @@ export function RouletteView({ onAddMeal }: RouletteViewProps) {
   const requestIdRef = useRef(0);
   const maxWaitTimerRef = useRef<number | null>(null);
   const continuousSpinTweenRef = useRef<gsap.core.Tween | null>(null);
+
+  const setWheelBtnRef = useCallback(
+    (node: HTMLButtonElement | null) => {
+      if (externalWheelContainerRef) externalWheelContainerRef.current = node;
+    },
+    [externalWheelContainerRef]
+  );
+
+  const setWheelSlotRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (externalWheelSlotRef) externalWheelSlotRef.current = node;
+    },
+    [externalWheelSlotRef]
+  );
+
+  const titleClass =
+    !spinTitleOpaque
+      ? 'spin-zone__title--fully-collapsed'
+      : !spinTitleExpanded
+        ? 'spin-zone__title--opaque-collapsed'
+        : 'spin-zone__title--expanded';
 
   const stopContinuousSpin = useCallback(() => {
     if (continuousSpinTweenRef.current) {
@@ -238,11 +283,13 @@ export function RouletteView({ onAddMeal }: RouletteViewProps) {
 
   return (
     <div className="roulette-view">
-      <div className="spin-zone">
-        <div className="sec-label" style={{ alignSelf: 'flex-start', width: '100%' }}>
+      <div className={`spin-zone${hideSpinZoneChrome ? ' spin-zone--extras-hidden' : ''}`}>
+        <div className={`sec-label spin-zone__title ${titleClass}`}>
           Tonight&apos;s roulette
         </div>
+        <div ref={setWheelSlotRef} className="spin-zone__wheel-slot">
         <button
+          ref={setWheelBtnRef}
           type="button"
           className="wheel-container"
           onClick={runSpin}
@@ -281,6 +328,7 @@ export function RouletteView({ onAddMeal }: RouletteViewProps) {
           </svg>
           <div className="w-hub">?</div>
         </button>
+        </div>
         <label className="skip-animation">
           <input
             type="checkbox"

@@ -3,7 +3,15 @@
  * Dices + title (and optional streak); right: Edit Preferences when enabled.
  */
 
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  forwardRef,
+  type MutableRefObject,
+} from 'react';
 import { gsap } from 'gsap';
 import { MacroSliderInput } from '@/components/MacroSliderInput';
 import { useMacroPreferenceStore } from '@/state/macroPreferenceStore';
@@ -15,15 +23,21 @@ export interface AppHeaderProps {
   streak?: number;
   /** Optional slot (e.g. Google Drive backup controls). */
   cloudBackup?: ReactNode;
+  /** When true, skip the one-shot mount entrance (parent runs a coordinated intro). */
+  suppressMountEntrance?: boolean;
 }
 
-export function AppHeader({
-  onEditPreferences,
-  showEditPreferences = false,
-  preferencesOpen = false,
-  cloudBackup,
-}: AppHeaderProps) {
-  const headerRef = useRef<HTMLElement>(null);
+export const AppHeader = forwardRef<HTMLElement, AppHeaderProps>(function AppHeader(
+  {
+    onEditPreferences,
+    showEditPreferences = false,
+    preferencesOpen = false,
+    cloudBackup,
+    suppressMountEntrance = false,
+  },
+  forwardedRef
+) {
+  const headerRef = useRef<HTMLElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dailyLimitsOpen, setDailyLimitsOpen] = useState(false);
   const [dailyLimitsVisible, setDailyLimitsVisible] = useState(false);
@@ -42,14 +56,23 @@ export function AppHeader({
   const dailyFatTarget = useMacroPreferenceStore((s) => s.dailyFatTarget);
   const dailyCalorieTarget = useMacroPreferenceStore((s) => s.dailyCalorieTarget);
 
+  const setHeaderRef = useCallback(
+    (node: HTMLElement | null) => {
+      headerRef.current = node;
+      if (typeof forwardedRef === 'function') forwardedRef(node);
+      else if (forwardedRef) (forwardedRef as MutableRefObject<HTMLElement | null>).current = node;
+    },
+    [forwardedRef]
+  );
+
   useEffect(() => {
-    if (!headerRef.current) return;
+    if (suppressMountEntrance || !headerRef.current) return;
     gsap.fromTo(
       headerRef.current,
       { y: -60, opacity: 0 },
       { y: 0, opacity: 1, duration: 0.5, ease: 'power2.out' }
     );
-  }, []);
+  }, [suppressMountEntrance]);
 
   useEffect(() => {
     return () => {
@@ -98,7 +121,7 @@ export function AppHeader({
 
   return (
     <header
-      ref={headerRef}
+      ref={setHeaderRef}
       className="app-header sticky top-0 z-50"
     >
       <div className="logo-block">
@@ -207,4 +230,4 @@ export function AppHeader({
       </div>
     </header>
   );
-}
+});

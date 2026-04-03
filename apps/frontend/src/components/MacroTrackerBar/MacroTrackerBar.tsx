@@ -3,7 +3,15 @@
  * GSAP for entrance and expand/collapse.
  */
 
-import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type Ref,
+  type MutableRefObject,
+} from 'react';
 import { gsap } from 'gsap';
 import { getTodayMacroLog } from '@/services/macroLog';
 import type { LoggedMeal } from '@/services/macroLog';
@@ -23,6 +31,10 @@ export interface MacroTrackerBarRef {
 export interface MacroTrackerBarProps {
   targets: MacroTargets;
   ref?: React.Ref<MacroTrackerBarRef | null>;
+  /** Optional DOM ref to the fixed root (for coordinated page-load intro). */
+  domRootRef?: Ref<HTMLDivElement | null>;
+  /** When true, skip the one-shot mount entrance (parent runs a coordinated intro). */
+  suppressMountEntrance?: boolean;
 }
 
 const BAR_COLORS: Record<keyof MacroTargets, string> = {
@@ -33,8 +45,8 @@ const BAR_COLORS: Record<keyof MacroTargets, string> = {
 };
 
 export const MacroTrackerBar = React.forwardRef<MacroTrackerBarRef | null, MacroTrackerBarProps>(
-  function MacroTrackerBar({ targets }, ref) {
-    const barRef = useRef<HTMLDivElement>(null);
+  function MacroTrackerBar({ targets, domRootRef, suppressMountEntrance = false }, ref) {
+    const barRef = useRef<HTMLDivElement | null>(null);
     const panelRef = useRef<HTMLDivElement>(null);
     const fillRefs = useRef<(HTMLDivElement | null)[]>([]);
     const [expanded, setExpanded] = useState(false);
@@ -70,14 +82,23 @@ export const MacroTrackerBar = React.forwardRef<MacroTrackerBarRef | null, Macro
       setStreak(calculateStreak());
     }, []);
 
+    const setBarRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        barRef.current = node;
+        if (typeof domRootRef === 'function') domRootRef(node);
+        else if (domRootRef) (domRootRef as MutableRefObject<HTMLDivElement | null>).current = node;
+      },
+      [domRootRef]
+    );
+
     useEffect(() => {
-      if (!barRef.current) return;
+      if (suppressMountEntrance || !barRef.current) return;
       gsap.fromTo(
         barRef.current,
         { y: 56, opacity: 0 },
         { y: 0, opacity: 1, duration: 0.4, ease: 'power2.out' }
       );
-    }, []);
+    }, [suppressMountEntrance]);
 
     useEffect(() => {
       if (!panelRef.current) return;
@@ -136,7 +157,7 @@ export const MacroTrackerBar = React.forwardRef<MacroTrackerBarRef | null, Macro
 
     return (
       <div
-        ref={barRef}
+        ref={setBarRef}
         className="macro-tracker-bar"
         style={{
           position: 'fixed',
